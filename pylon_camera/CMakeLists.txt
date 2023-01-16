@@ -49,6 +49,7 @@ roslint_cpp(
     src/${PROJECT_NAME}/encoding_conversions.cpp
     src/${PROJECT_NAME}/main.cpp
     src/${PROJECT_NAME}/${PROJECT_NAME}_node.cpp
+    src/${PROJECT_NAME}/${PROJECT_NAME}_node_bracketing.cpp
     src/${PROJECT_NAME}/${PROJECT_NAME}_parameter.cpp
     src/${PROJECT_NAME}/${PROJECT_NAME}.cpp
     src/${PROJECT_NAME}/set_device_user_id.cpp
@@ -56,6 +57,7 @@ roslint_cpp(
     include/${PROJECT_NAME}/binary_exposure_search.h
     include/${PROJECT_NAME}/encoding_conversions.h
     include/${PROJECT_NAME}/${PROJECT_NAME}_node.h
+    include/${PROJECT_NAME}/${PROJECT_NAME}_node_bracketing.h
     include/${PROJECT_NAME}/${PROJECT_NAME}_parameter.h
     include/${PROJECT_NAME}/${PROJECT_NAME}.h
     include/${PROJECT_NAME}/internal/${PROJECT_NAME}.h
@@ -81,6 +83,7 @@ add_library(
      src/${PROJECT_NAME}/encoding_conversions.cpp
      src/${PROJECT_NAME}/${PROJECT_NAME}.cpp
      src/${PROJECT_NAME}/${PROJECT_NAME}_node.cpp
+     src/${PROJECT_NAME}/${PROJECT_NAME}_node_bracketing.cpp
      src/${PROJECT_NAME}/${PROJECT_NAME}_parameter.cpp
 )
 
@@ -106,6 +109,17 @@ target_link_libraries(
      ${PROJECT_NAME}
 )
 
+# Add pylon_camera_node_bracketing
+add_executable(
+    ${PROJECT_NAME}_node_bracketing
+     src/${PROJECT_NAME}/main_bracketing.cpp
+)
+
+target_link_libraries(
+    ${PROJECT_NAME}_node_bracketing
+     ${PROJECT_NAME}
+)
+
 add_executable(
     set_device_user_id
      src/${PROJECT_NAME}/set_device_user_id.cpp
@@ -128,6 +142,11 @@ target_link_libraries(
 
 add_dependencies(
     ${PROJECT_NAME}_node
+     ${catkin_EXPORTED_TARGETS}
+)
+
+add_dependencies(
+    ${PROJECT_NAME}_node_bracketing
      ${catkin_EXPORTED_TARGETS}
 )
 
@@ -172,6 +191,7 @@ install(
     TARGETS
      ${PROJECT_NAME}
      ${PROJECT_NAME}_node
+     ${PROJECT_NAME}_node_bracketing
      set_device_user_id
      IPConfigAuto
     LIBRARY DESTINATION

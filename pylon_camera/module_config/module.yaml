@@ -16,7 +16,7 @@ configuration:
     description: 'Select the startup user set'
     datatype: select
     available: ['CurrentSetting','Default', 'UserSet1', 'UserSet2', 'UserSet3']
-    default: 'CurrentSetting'
+    default: 'UserSet1'
   - id: intrinsic_calibration_name
     namespace: ''
     name: 'Intrinsic calibration name'

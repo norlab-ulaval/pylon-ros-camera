@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
-#include <pylon_camera/pylon_camera_node.h>
+#include <pylon_camera/pylon_camera_node_bracketing.h>
 #include <GenApi/GenApi.h>
 #include <algorithm>
 #include <cmath>
@@ -45,218 +45,221 @@ namespace pylon_camera
 using sensor_msgs::CameraInfo;
 using sensor_msgs::CameraInfoPtr;
 
-PylonCameraNode::PylonCameraNode()
+int idx_exposure = 0;
+std::vector<int> exposures = {1000, 2000, 4000, 8000, 16000};
+
+PylonCameraNodeBracketing::PylonCameraNodeBracketing()
     : nh_("~"),
       pylon_camera_parameter_set_(),
       set_binning_srv_(nh_.advertiseService("set_binning",
-                                            &PylonCameraNode::setBinningCallback,
+                                            &PylonCameraNodeBracketing::setBinningCallback,
                                             this)),
       set_roi_srv_(nh_.advertiseService("set_roi",
-                                        &PylonCameraNode::setROICallback,
+                                        &PylonCameraNodeBracketing::setROICallback,
                                         this)),
       set_exposure_srv_(nh_.advertiseService("set_exposure",
-                                             &PylonCameraNode::setExposureCallback,
+                                             &PylonCameraNodeBracketing::setExposureCallback,
                                              this)),
       set_gain_srv_(nh_.advertiseService("set_gain",
-                                         &PylonCameraNode::setGainCallback,
+                                         &PylonCameraNodeBracketing::setGainCallback,
                                          this)),
       set_gamma_srv_(nh_.advertiseService("set_gamma",
-                                          &PylonCameraNode::setGammaCallback,
+                                          &PylonCameraNodeBracketing::setGammaCallback,
                                           this)),
       set_brightness_srv_(nh_.advertiseService("set_brightness",
-                                               &PylonCameraNode::setBrightnessCallback,
+                                               &PylonCameraNodeBracketing::setBrightnessCallback,
                                                this)),
       set_sleeping_srv_(nh_.advertiseService("set_sleeping",
-                                             &PylonCameraNode::setSleepingCallback,
+                                             &PylonCameraNodeBracketing::setSleepingCallback,
                                              this)),
       set_offset_x_srv_(nh_.advertiseService("set_offset_x",
-                                             &PylonCameraNode::setOffsetXCallback,
+                                             &PylonCameraNodeBracketing::setOffsetXCallback,
                                              this)),
       set_offset_y_srv_(nh_.advertiseService("set_offset_y",
-                                             &PylonCameraNode::setOffsetYCallback,
+                                             &PylonCameraNodeBracketing::setOffsetYCallback,
                                              this)),
       reverse_x_srv_(nh_.advertiseService("set_reverse_x",
-                                             &PylonCameraNode::setReverseXCallback,
+                                             &PylonCameraNodeBracketing::setReverseXCallback,
                                              this)),
       reverse_y_srv_(nh_.advertiseService("set_reverse_y",
-                                             &PylonCameraNode::setReverseYCallback,
+                                             &PylonCameraNodeBracketing::setReverseYCallback,
                                              this)),
       set_black_level_srv_(nh_.advertiseService("set_black_level",
-                                             &PylonCameraNode::setBlackLevelCallback,
+                                             &PylonCameraNodeBracketing::setBlackLevelCallback,
                                              this)),
       set_PGI_mode_srv_(nh_.advertiseService("set_pgi_mode",
-                                             &PylonCameraNode::setPGIModeCallback,
+                                             &PylonCameraNodeBracketing::setPGIModeCallback,
                                              this)),
       set_demosaicing_mode_srv_(nh_.advertiseService("set_demosaicing_mode",
-                                             &PylonCameraNode::setDemosaicingModeCallback,
+                                             &PylonCameraNodeBracketing::setDemosaicingModeCallback,
                                              this)),
       set_noise_reduction_srv_(nh_.advertiseService("set_noise_reduction",
-                                             &PylonCameraNode::setNoiseReductionCallback,
+                                             &PylonCameraNodeBracketing::setNoiseReductionCallback,
                                              this)),
       set_sharpness_enhancement_srv_(nh_.advertiseService("set_sharpness_enhancement",
-                                             &PylonCameraNode::setSharpnessEnhancementCallback,
+                                             &PylonCameraNodeBracketing::setSharpnessEnhancementCallback,
                                              this)),
       set_light_source_preset_srv_(nh_.advertiseService("set_light_source_preset",
-                                             &PylonCameraNode::setLightSourcePresetCallback,
+                                             &PylonCameraNodeBracketing::setLightSourcePresetCallback,
                                              this)),
       set_balance_white_auto_srv_(nh_.advertiseService("set_balance_white_auto",
-                                             &PylonCameraNode::setBalanceWhiteAutoCallback,
+                                             &PylonCameraNodeBracketing::setBalanceWhiteAutoCallback,
                                              this)),
       set_sensor_readout_mode_srv_(nh_.advertiseService("set_sensor_readout_mode",
-                                             &PylonCameraNode::setSensorReadoutModeCallback,
+                                             &PylonCameraNodeBracketing::setSensorReadoutModeCallback,
                                              this)),
       set_acquisition_frame_count_srv_(nh_.advertiseService("set_acquisition_frame_count",
-                                             &PylonCameraNode::setAcquisitionFrameCountCallback,
+                                             &PylonCameraNodeBracketing::setAcquisitionFrameCountCallback,
                                              this)),
       set_trigger_selector_srv_(nh_.advertiseService("set_trigger_selector",
-                                             &PylonCameraNode::setTriggerSelectorCallback,
+                                             &PylonCameraNodeBracketing::setTriggerSelectorCallback,
                                              this)),
       set_trigger_mode_srv_(nh_.advertiseService("set_trigger_mode",
-                                             &PylonCameraNode::setTriggerModeCallback,
+                                             &PylonCameraNodeBracketing::setTriggerModeCallback,
                                              this)),
       execute_software_trigger_srv_(nh_.advertiseService("execute_software_trigger",
-                                             &PylonCameraNode::executeSoftwareTriggerCallback,
+                                             &PylonCameraNodeBracketing::executeSoftwareTriggerCallback,
                                              this)),
       set_trigger_source_srv_(nh_.advertiseService("set_trigger_source",
-                                             &PylonCameraNode::setTriggerSourceCallback,
+                                             &PylonCameraNodeBracketing::setTriggerSourceCallback,
                                              this)),
       set_trigger_activation_srv_(nh_.advertiseService("set_trigger_activation",
-                                             &PylonCameraNode::setTriggerActivationCallback,
+                                             &PylonCameraNodeBracketing::setTriggerActivationCallback,
                                              this)),
       set_trigger_delay_srv_(nh_.advertiseService("set_trigger_delay",
-                                             &PylonCameraNode::setTriggerDelayCallback,
+                                             &PylonCameraNodeBracketing::setTriggerDelayCallback,
                                              this)),
       set_line_selector_srv_(nh_.advertiseService("set_line_selector",
-                                             &PylonCameraNode::setLineSelectorCallback,
+                                             &PylonCameraNodeBracketing::setLineSelectorCallback,
                                              this)),
       set_line_mode_srv_(nh_.advertiseService("set_line_mode",
-                                             &PylonCameraNode::setLineModeCallback,
+                                             &PylonCameraNodeBracketing::setLineModeCallback,
                                              this)),
       set_line_source_srv_(nh_.advertiseService("set_line_source",
-                                             &PylonCameraNode::setLineSourceCallback,
+                                             &PylonCameraNodeBracketing::setLineSourceCallback,
                                              this)),
       set_line_inverter_srv_(nh_.advertiseService("set_line_inverter",
-                                             &PylonCameraNode::setLineInverterCallback,
+                                             &PylonCameraNodeBracketing::setLineInverterCallback,
                                              this)),
       set_line_debouncer_time_srv_(nh_.advertiseService("set_line_debouncer_time",
-                                             &PylonCameraNode::setLineDebouncerTimeCallback,
+                                             &PylonCameraNodeBracketing::setLineDebouncerTimeCallback,
                                              this)),
       set_user_set_selector_srv_(nh_.advertiseService("select_user_set",
-                                             &PylonCameraNode::setUserSetSelectorCallback,
+                                             &PylonCameraNodeBracketing::setUserSetSelectorCallback,
                                              this)),
       save_user_set_srv_(nh_.advertiseService("save_user_set",
-                                             &PylonCameraNode::saveUserSetCallback,
+                                             &PylonCameraNodeBracketing::saveUserSetCallback,
                                              this)),
       load_user_set_srv_(nh_.advertiseService("load_user_set",
-                                             &PylonCameraNode::loadUserSetCallback,
+                                             &PylonCameraNodeBracketing::loadUserSetCallback,
                                              this)),
       set_user_set_default_selector_srv_(nh_.advertiseService("select_default_user_set",
-                                             &PylonCameraNode::setUserSetDefaultSelectorCallback,
+                                             &PylonCameraNodeBracketing::setUserSetDefaultSelectorCallback,
                                              this)),
       set_device_link_throughput_limit_mode_srv_(nh_.advertiseService("set_device_link_throughput_limit_mode",
-                                             &PylonCameraNode::setDeviceLinkThroughputLimitModeCallback,
+                                             &PylonCameraNodeBracketing::setDeviceLinkThroughputLimitModeCallback,
                                              this)),
       set_device_link_throughput_limit_srv_(nh_.advertiseService("set_device_link_throughput_limit",
-                                             &PylonCameraNode::setDeviceLinkThroughputLimitCallback,
+                                             &PylonCameraNodeBracketing::setDeviceLinkThroughputLimitCallback,
                                              this)),
       reset_device_srv_(nh_.advertiseService("reset_device",
-                                             &PylonCameraNode::triggerDeviceResetCallback,
+                                             &PylonCameraNodeBracketing::triggerDeviceResetCallback,
                                              this)),
       start_grabbing_srv_(nh_.advertiseService("start_grabbing",
-                                             &PylonCameraNode::StartGrabbingCallback,
+                                             &PylonCameraNodeBracketing::StartGrabbingCallback,
                                              this)),
       stop_grabbing_srv_(nh_.advertiseService("stop_grabbing",
-                                             &PylonCameraNode::StopGrabbingCallback,
+                                             &PylonCameraNodeBracketing::StopGrabbingCallback,
                                              this)),
       set_image_encoding_srv_(nh_.advertiseService("set_image_encoding",
-                                             &PylonCameraNode::setImageEncodingCallback,
+                                             &PylonCameraNodeBracketing::setImageEncodingCallback,
                                              this)),
       set_max_transfer_size_srv_(nh_.advertiseService("set_max_transfer_size",
-                                             &PylonCameraNode::setMaxTransferSizeCallback,
+                                             &PylonCameraNodeBracketing::setMaxTransferSizeCallback,
                                              this)),
       set_gamma_selector_srv(nh_.advertiseService("set_gamma_selector",
-                                             &PylonCameraNode::setGammaSelectorCallback,
+                                             &PylonCameraNodeBracketing::setGammaSelectorCallback,
                                              this)),
       gamma_enable_srv(nh_.advertiseService("gamma_enable",
-                                             &PylonCameraNode::gammaEnableCallback,
+                                             &PylonCameraNodeBracketing::gammaEnableCallback,
                                              this)),
       set_grab_timeout_srv(nh_.advertiseService("set_grab_timeout",
-                                             &PylonCameraNode::setGrabTimeoutCallback,
+                                             &PylonCameraNodeBracketing::setGrabTimeoutCallback,
                                              this)),
       set_trigger_timeout_srv(nh_.advertiseService("set_trigger_timeout",
-                                             &PylonCameraNode::setTriggerTimeoutCallback,
+                                             &PylonCameraNodeBracketing::setTriggerTimeoutCallback,
                                              this)),
       set_grabbing_strategy_srv(nh_.advertiseService("set_grabbing_strategy",
-                                             &PylonCameraNode::setGrabbingStrategyCallback,
+                                             &PylonCameraNodeBracketing::setGrabbingStrategyCallback,
                                              this)),
       set_output_queue_size_srv(nh_.advertiseService("set_output_queue_size",
-                                             &PylonCameraNode::setOutputQueueSizeCallback,
+                                             &PylonCameraNodeBracketing::setOutputQueueSizeCallback,
                                              this)),
       set_white_balance_srv(nh_.advertiseService("set_white_balance",
-                                             &PylonCameraNode::setWhiteBalanceCallback,
+                                             &PylonCameraNodeBracketing::setWhiteBalanceCallback,
                                              this)),
       set_max_num_buffer_srv(nh_.advertiseService("set_max_num_buffer",
-                                             &PylonCameraNode::setMaxNumBufferCallback,
+                                             &PylonCameraNodeBracketing::setMaxNumBufferCallback,
                                              this)),
       get_max_num_buffer_srv(nh_.advertiseService("get_max_num_buffer",
-                                             &PylonCameraNode::getMaxNumBufferCallback,
+                                             &PylonCameraNodeBracketing::getMaxNumBufferCallback,
                                              this)),
       get_statistic_total_buffer_count_srv(nh_.advertiseService("get_statistic_total_buffer_count",
-                                             &PylonCameraNode::getStatisticTotalBufferCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticTotalBufferCountCallback,
                                              this)),
       get_statistic_failed_buffer_count_srv(nh_.advertiseService("get_statistic_failed_buffer_count",
-                                             &PylonCameraNode::getStatisticFailedBufferCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticFailedBufferCountCallback,
                                              this)),
       get_statistic_buffer_underrun_count_srv(nh_.advertiseService("get_statistic_buffer_underrun_count",
-                                             &PylonCameraNode::getStatisticBufferUnderrunCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticBufferUnderrunCountCallback,
                                              this)),
       get_statistic_failed_packet_count_srv(nh_.advertiseService("get_statistic_failed_packet_count",
-                                             &PylonCameraNode::getStatisticFailedPacketCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticFailedPacketCountCallback,
                                              this)),
       get_statistic_resend_request_count_srv(nh_.advertiseService("get_statistic_resend_request_count",
-                                             &PylonCameraNode::getStatisticResendRequestCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticResendRequestCountCallback,
                                              this)),
       get_statistic_missed_frame_count_srv(nh_.advertiseService("get_statistic_missed_frame_count",
-                                             &PylonCameraNode::getStatisticMissedFrameCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticMissedFrameCountCallback,
                                              this)),
       get_statistic_resynchronization_count_srv(nh_.advertiseService("get_statistic_resynchronization_count",
-                                             &PylonCameraNode::getStatisticResynchronizationCountCallback,
+                                             &PylonCameraNodeBracketing::getStatisticResynchronizationCountCallback,
                                              this)),
       set_chunk_mode_active_srv(nh_.advertiseService("set_chunk_mode_active",
-                                             &PylonCameraNode::setChunkModeActiveCallback,
+                                             &PylonCameraNodeBracketing::setChunkModeActiveCallback,
                                              this)),
       get_chunk_mode_active_srv(nh_.advertiseService("get_chunk_mode_active",
-                                             &PylonCameraNode::getChunkModeActiveCallback,
+                                             &PylonCameraNodeBracketing::getChunkModeActiveCallback,
                                              this)),
       set_chunk_selector_srv(nh_.advertiseService("set_chunk_selector",
-                                             &PylonCameraNode::setChunkSelectorCallback,
+                                             &PylonCameraNodeBracketing::setChunkSelectorCallback,
                                              this)),
       get_chunk_selector_srv(nh_.advertiseService("get_chunk_selector",
-                                             &PylonCameraNode::getChunkSelectorCallback,
+                                             &PylonCameraNodeBracketing::getChunkSelectorCallback,
                                              this)),
       set_chunk_enable_srv(nh_.advertiseService("set_chunk_enable",
-                                             &PylonCameraNode::setChunkEnableCallback,
+                                             &PylonCameraNodeBracketing::setChunkEnableCallback,
                                              this)),
       get_chunk_enable_srv(nh_.advertiseService("get_chunk_enable",
-                                             &PylonCameraNode::getChunkEnableCallback,
+                                             &PylonCameraNodeBracketing::getChunkEnableCallback,
                                              this)),
       get_chunk_timestamp_srv(nh_.advertiseService("get_chunk_timestamp",
-                                             &PylonCameraNode::getChunkTimestampCallback,
+                                             &PylonCameraNodeBracketing::getChunkTimestampCallback,
                                              this)),
       get_chunk_exposure_time_srv(nh_.advertiseService("get_chunk_exposure_time",
-                                             &PylonCameraNode::getChunkExposureTimeCallback,
+                                             &PylonCameraNodeBracketing::getChunkExposureTimeCallback,
                                              this)),
       set_chunk_exposure_time_srv(nh_.advertiseService("set_chunk_exposure_time",
-                                             &PylonCameraNode::setChunkExposureTimeCallback,
+                                             &PylonCameraNodeBracketing::setChunkExposureTimeCallback,
                                              this)),
       get_chunk_line_status_all_srv(nh_.advertiseService("get_chunk_line_status_all",
-                                             &PylonCameraNode::getChunkLineStatusAllCallback,
+                                             &PylonCameraNodeBracketing::getChunkLineStatusAllCallback,
                                              this)),
       get_chunk_frame_counter_srv(nh_.advertiseService("get_chunk_frame_counter",
-                                             &PylonCameraNode::getChunkFramecounterCallback,
+                                             &PylonCameraNodeBracketing::getChunkFramecounterCallback,
                                              this)),
       get_chunk_counter_value_srv(nh_.advertiseService("get_chunk_counter_value",
-                                             &PylonCameraNode::getChunkCounterValueCallback,
+                                             &PylonCameraNodeBracketing::getChunkCounterValueCallback,
                                              this)),
       set_user_output_srvs_(),
       pylon_camera_(nullptr),
@@ -266,7 +269,7 @@ PylonCameraNode::PylonCameraNode()
       grab_imgs_raw_as_(
               nh_,
               "grab_images_raw",
-              boost::bind(&PylonCameraNode::grabImagesRawActionExecuteCB,
+              boost::bind(&PylonCameraNodeBracketing::grabImagesRawActionExecuteCB,
                           this,
                           _1),
               false),
@@ -279,16 +282,17 @@ PylonCameraNode::PylonCameraNode()
       is_sleeping_(false)
 {
     diagnostics_updater_.setHardwareID("none");
-    diagnostics_updater_.add("camera_availability", this, &PylonCameraNode::create_diagnostics);
-    diagnostics_updater_.add("intrinsic_calibration", this, &PylonCameraNode::create_camera_info_diagnostics);
-    diagnostics_trigger_ = nh_.createTimer(ros::Duration(2), &PylonCameraNode::diagnostics_timer_callback_, this);
+    diagnostics_updater_.add("camera_availability", this, &PylonCameraNodeBracketing::create_diagnostics);
+    diagnostics_updater_.add("intrinsic_calibration", this, &PylonCameraNodeBracketing::create_camera_info_diagnostics);
+    diagnostics_trigger_ = nh_.createTimer(ros::Duration(2), &PylonCameraNodeBracketing::diagnostics_timer_callback_, this);
     componentStatusPublisher = nh_.advertise<dnb_msgs::ComponentStatus>("/pylon_camera_node/status", 5, true); // DNB component status publisher
     currentParamsPublisher = nh_.advertise<camera_control_msgs::currentParams>("/pylon_camera_node/currentParams", 5, true); // current camera params publisher
 
     init();
 }
 
-void PylonCameraNode::create_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat)
+
+void PylonCameraNodeBracketing::create_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat)
 {
     if (pylon_camera_parameter_set_.deviceUserID().empty())
     {
@@ -313,7 +317,7 @@ void PylonCameraNode::create_diagnostics(diagnostic_updater::DiagnosticStatusWra
     }
 }
 
-void PylonCameraNode::create_camera_info_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat)
+void PylonCameraNodeBracketing::create_camera_info_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat)
 {
     if (camera_info_manager_->isCalibrated())
     {
@@ -323,12 +327,12 @@ void PylonCameraNode::create_camera_info_diagnostics(diagnostic_updater::Diagnos
     }
 }
 
-void PylonCameraNode::diagnostics_timer_callback_(const ros::TimerEvent&)
+void PylonCameraNodeBracketing::diagnostics_timer_callback_(const ros::TimerEvent&)
 {
     diagnostics_updater_.update();
 }
 
-void PylonCameraNode::init()
+void PylonCameraNodeBracketing::init()
 {
     // reading all necessary parameter to open the desired camera from the
     // ros-parameter-server. In case that invalid parameter values can be
@@ -354,7 +358,7 @@ void PylonCameraNode::init()
     }
 }
 
-bool PylonCameraNode::initAndRegister()
+bool PylonCameraNodeBracketing::initAndRegister()
 {
     pylon_camera_ = PylonCamera::create(
                                     pylon_camera_parameter_set_.deviceUserID());
@@ -450,7 +454,7 @@ bool PylonCameraNode::initAndRegister()
     return true;
 }
 
-bool PylonCameraNode::startGrabbing()
+bool PylonCameraNodeBracketing::startGrabbing()
 {
     if ( !pylon_camera_->startGrabbing(pylon_camera_parameter_set_) )
     {
@@ -470,7 +474,7 @@ bool PylonCameraNode::startGrabbing()
             nh_.advertiseService< std_srvs::SetBool::Request,
                                   std_srvs::SetBool::Response >(
                                     srv_name,
-                                    boost::bind(&PylonCameraNode::setUserOutputCB,
+                                    boost::bind(&PylonCameraNodeBracketing::setUserOutputCB,
                                                 this, i ,_1 ,_2));
         }
         if (! ros::service::exists("~" + srv_name_af, false))
@@ -479,7 +483,7 @@ bool PylonCameraNode::startGrabbing()
             nh_.advertiseService< std_srvs::SetBool::Request,
                                   std_srvs::SetBool::Response >(
                                     srv_name_af,
-                                    boost::bind(&PylonCameraNode::setAutoflash,
+                                    boost::bind(&PylonCameraNodeBracketing::setAutoflash,
                                                 this, i+2, _1, _2)); // ! using lines 2 and 3
         }
     }
@@ -634,7 +638,7 @@ bool PylonCameraNode::startGrabbing()
     return true;
 }
 
-void PylonCameraNode::setupRectification()
+void PylonCameraNodeBracketing::setupRectification()
 {
     if ( !img_rect_pub_ )
     {
@@ -647,7 +651,7 @@ void PylonCameraNode::setupRectification()
             new GrabImagesAS(nh_,
                              "grab_images_rect",
                              boost::bind(
-                                &PylonCameraNode::grabImagesRectActionExecuteCB,
+                                &PylonCameraNodeBracketing::grabImagesRectActionExecuteCB,
                                 this,
                                 _1),
                              false);
@@ -687,18 +691,18 @@ public:
   CameraPublisherImpl* impl_;
 };
 
-uint32_t  PylonCameraNode::getNumSubscribersRaw() const
+uint32_t  PylonCameraNodeBracketing::getNumSubscribersRaw() const
 {
     return ((CameraPublisherLocal*)(&img_raw_pub_))->impl_->image_pub_.getNumSubscribers();
 }
 
-uint32_t PylonCameraNode::getNumSubscribersRect() const
+uint32_t PylonCameraNodeBracketing::getNumSubscribersRect() const
 {
     return camera_info_manager_->isCalibrated() ? img_rect_pub_->getNumSubscribers() : 0;
 }
 
 
-void PylonCameraNode::spin()
+void PylonCameraNodeBracketing::spin()
 {   
     if ( camera_info_manager_->isCalibrated() )
     {
@@ -734,7 +738,16 @@ void PylonCameraNode::spin()
     if (!isSleeping() && (getNumSubscribersRaw() || getNumSubscribersRect()))
     {
         if (getNumSubscribersRaw() || getNumSubscribersRect())
-        { 
+        {
+            //########### OG
+            float reached_exposure;
+            setExposure(exposures[idx_exposure], reached_exposure);
+            std::cout << "Exposure reached: " << reached_exposure << std::endl;
+            idx_exposure++;
+            if (idx_exposure >= exposures.size()) {
+                idx_exposure = 0;
+            }
+            //###############
             if (!grabImage())
             { 
                 return;
@@ -784,7 +797,7 @@ void PylonCameraNode::spin()
     } 
 }
 
-bool PylonCameraNode::grabImage()
+bool PylonCameraNodeBracketing::grabImage()
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     // Store current time before the image is transmitted for a more accurate grab time estimation
@@ -797,7 +810,7 @@ bool PylonCameraNode::grabImage()
     return true;
 }
 
-void PylonCameraNode::grabImagesRawActionExecuteCB(
+void PylonCameraNodeBracketing::grabImagesRawActionExecuteCB(
                     const camera_control_msgs::GrabImagesGoal::ConstPtr& goal)
 {
     camera_control_msgs::GrabImagesResult result;
@@ -805,7 +818,7 @@ void PylonCameraNode::grabImagesRawActionExecuteCB(
     grab_imgs_raw_as_.setSucceeded(result);
 }
 
-void PylonCameraNode::grabImagesRectActionExecuteCB(
+void PylonCameraNodeBracketing::grabImagesRectActionExecuteCB(
                     const camera_control_msgs::GrabImagesGoal::ConstPtr& goal)
 {
     camera_control_msgs::GrabImagesResult result;
@@ -840,7 +853,7 @@ void PylonCameraNode::grabImagesRectActionExecuteCB(
     }
 }
 
-camera_control_msgs::GrabImagesResult PylonCameraNode::grabImagesRaw(
+camera_control_msgs::GrabImagesResult PylonCameraNodeBracketing::grabImagesRaw(
         const camera_control_msgs::GrabImagesGoal::ConstPtr& goal,
         GrabImagesAS* action_server)
 {
@@ -1063,7 +1076,7 @@ camera_control_msgs::GrabImagesResult PylonCameraNode::grabImagesRaw(
     return result;
 }
 
-bool PylonCameraNode::setUserOutputCB(const int output_id,
+bool PylonCameraNodeBracketing::setUserOutputCB(const int output_id,
                                       std_srvs::SetBool::Request &req,
                                       std_srvs::SetBool::Response &res)
 {
@@ -1071,7 +1084,7 @@ bool PylonCameraNode::setUserOutputCB(const int output_id,
     return true;
 }
 
-bool PylonCameraNode::setAutoflash(const int output_id,
+bool PylonCameraNodeBracketing::setAutoflash(const int output_id,
                                    std_srvs::SetBool::Request &req,
                                    std_srvs::SetBool::Response &res)
 {
@@ -1083,17 +1096,17 @@ bool PylonCameraNode::setAutoflash(const int output_id,
     return true;
 }
 
-const double& PylonCameraNode::frameRate() const
+const double& PylonCameraNodeBracketing::frameRate() const
 {
     return pylon_camera_parameter_set_.frameRate();
 }
 
-const std::string& PylonCameraNode::cameraFrame() const
+const std::string& PylonCameraNodeBracketing::cameraFrame() const
 {
     return pylon_camera_parameter_set_.cameraFrame();
 }
 
-void PylonCameraNode::setupInitialCameraInfo(sensor_msgs::CameraInfo& cam_info_msg)
+void PylonCameraNodeBracketing::setupInitialCameraInfo(sensor_msgs::CameraInfo& cam_info_msg)
 {
     std_msgs::Header header;
     header.frame_id = pylon_camera_parameter_set_.cameraFrame();
@@ -1184,7 +1197,7 @@ void PylonCameraNode::setupInitialCameraInfo(sensor_msgs::CameraInfo& cam_info_m
  * Waits till the pylon_camera_ isReady() observing a given timeout
  * @return true when the camera's state toggles to 'isReady()'
  */
-bool PylonCameraNode::waitForCamera(const ros::Duration& timeout) const
+bool PylonCameraNodeBracketing::waitForCamera(const ros::Duration& timeout) const
 {
     bool result = false;
     ros::Time start_time = ros::Time::now();
@@ -1215,7 +1228,7 @@ bool PylonCameraNode::waitForCamera(const ros::Duration& timeout) const
 }
 
 
-bool PylonCameraNode::setROI(const sensor_msgs::RegionOfInterest target_roi,
+bool PylonCameraNodeBracketing::setROI(const sensor_msgs::RegionOfInterest target_roi,
 			     sensor_msgs::RegionOfInterest& reached_roi)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -1259,7 +1272,7 @@ bool PylonCameraNode::setROI(const sensor_msgs::RegionOfInterest target_roi,
 }
 
 
-bool PylonCameraNode::setBinningX(const size_t& target_binning_x,
+bool PylonCameraNodeBracketing::setBinningX(const size_t& target_binning_x,
                                   size_t& reached_binning_x)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -1304,7 +1317,7 @@ bool PylonCameraNode::setBinningX(const size_t& target_binning_x,
     return true;
 }
 
-bool PylonCameraNode::setBinningY(const size_t& target_binning_y,
+bool PylonCameraNodeBracketing::setBinningY(const size_t& target_binning_y,
                                   size_t& reached_binning_y)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -1349,7 +1362,7 @@ bool PylonCameraNode::setBinningY(const size_t& target_binning_y,
     return true;
 }
 
-bool PylonCameraNode::setBinningCallback(camera_control_msgs::SetBinning::Request &req,
+bool PylonCameraNodeBracketing::setBinningCallback(camera_control_msgs::SetBinning::Request &req,
                                          camera_control_msgs::SetBinning::Response &res)
 {
     size_t reached_binning_x, reached_binning_y;
@@ -1363,7 +1376,7 @@ bool PylonCameraNode::setBinningCallback(camera_control_msgs::SetBinning::Reques
     return true;
 }
 
-bool PylonCameraNode::setROICallback(camera_control_msgs::SetROI::Request &req,
+bool PylonCameraNodeBracketing::setROICallback(camera_control_msgs::SetROI::Request &req,
                                      camera_control_msgs::SetROI::Response &res)
 {
     res.success = setROI(req.target_roi, res.reached_roi);
@@ -1371,7 +1384,7 @@ bool PylonCameraNode::setROICallback(camera_control_msgs::SetROI::Request &req,
 }
   
 
-bool PylonCameraNode::setExposure(const float& target_exposure,
+bool PylonCameraNodeBracketing::setExposure(const float& target_exposure,
                                   float& reached_exposure)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -1411,14 +1424,14 @@ bool PylonCameraNode::setExposure(const float& target_exposure,
     }
 }
 
-bool PylonCameraNode::setExposureCallback(camera_control_msgs::SetExposure::Request &req,
+bool PylonCameraNodeBracketing::setExposureCallback(camera_control_msgs::SetExposure::Request &req,
                                           camera_control_msgs::SetExposure::Response &res)
 {
     res.success = setExposure(req.target_exposure, res.reached_exposure);
     return true;
 }
 
-bool PylonCameraNode::setGain(const float& target_gain, float& reached_gain)
+bool PylonCameraNodeBracketing::setGain(const float& target_gain, float& reached_gain)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -1455,14 +1468,14 @@ bool PylonCameraNode::setGain(const float& target_gain, float& reached_gain)
      }
 }
 
-bool PylonCameraNode::setGainCallback(camera_control_msgs::SetGain::Request &req,
+bool PylonCameraNodeBracketing::setGainCallback(camera_control_msgs::SetGain::Request &req,
                                       camera_control_msgs::SetGain::Response &res)
 {
     res.success = setGain(req.target_gain, res.reached_gain);
     return true;
 }
 
-bool PylonCameraNode::setGamma(const float& target_gamma, float& reached_gamma)
+bool PylonCameraNodeBracketing::setGamma(const float& target_gamma, float& reached_gamma)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -1499,14 +1512,14 @@ bool PylonCameraNode::setGamma(const float& target_gamma, float& reached_gamma)
     }
 }
 
-bool PylonCameraNode::setGammaCallback(camera_control_msgs::SetGamma::Request &req,
+bool PylonCameraNodeBracketing::setGammaCallback(camera_control_msgs::SetGamma::Request &req,
                                        camera_control_msgs::SetGamma::Response &res)
 {
     res.success = setGamma(req.target_gamma, res.reached_gamma);
     return true;
 }
 
-bool PylonCameraNode::setBrightness(const int& target_brightness,
+bool PylonCameraNodeBracketing::setBrightness(const int& target_brightness,
                                     int& reached_brightness,
                                     const bool& exposure_auto,
                                     const bool& gain_auto)
@@ -1728,7 +1741,7 @@ bool PylonCameraNode::setBrightness(const int& target_brightness,
     return is_brightness_reached;
 }
 
-bool PylonCameraNode::setBrightnessCallback(camera_control_msgs::SetBrightness::Request &req,
+bool PylonCameraNodeBracketing::setBrightnessCallback(camera_control_msgs::SetBrightness::Request &req,
                                             camera_control_msgs::SetBrightness::Response &res)
 {
     res.success = setBrightness(req.target_brightness,
@@ -1751,7 +1764,7 @@ bool PylonCameraNode::setBrightnessCallback(camera_control_msgs::SetBrightness::
     return true;
 }
 
-void PylonCameraNode::setupSamplingIndices(std::vector<std::size_t>& indices,
+void PylonCameraNodeBracketing::setupSamplingIndices(std::vector<std::size_t>& indices,
                                            std::size_t rows,
                                            std::size_t cols,
                                            int downsampling_factor)
@@ -1771,7 +1784,7 @@ void PylonCameraNode::setupSamplingIndices(std::vector<std::size_t>& indices,
     return;
 }
 
-void PylonCameraNode::genSamplingIndicesRec(std::vector<std::size_t>& indices,
+void PylonCameraNodeBracketing::genSamplingIndicesRec(std::vector<std::size_t>& indices,
                                             const std::size_t& min_window_height,
                                             const cv::Point2i& s,   // start
                                             const cv::Point2i& e)   // end
@@ -1808,7 +1821,7 @@ void PylonCameraNode::genSamplingIndicesRec(std::vector<std::size_t>& indices,
     return;
 }
 
-float PylonCameraNode::calcCurrentBrightness()
+float PylonCameraNodeBracketing::calcCurrentBrightness()
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( img_raw_msg_.data.empty() )
@@ -1840,7 +1853,7 @@ float PylonCameraNode::calcCurrentBrightness()
     return sum;
 }
 
-bool PylonCameraNode::setSleepingCallback(camera_control_msgs::SetSleeping::Request &req,
+bool PylonCameraNodeBracketing::setSleepingCallback(camera_control_msgs::SetSleeping::Request &req,
                                           camera_control_msgs::SetSleeping::Response &res)
 {
     is_sleeping_ = req.set_sleeping;
@@ -1858,12 +1871,12 @@ bool PylonCameraNode::setSleepingCallback(camera_control_msgs::SetSleeping::Requ
     return true;
 }
 
-bool PylonCameraNode::isSleeping()
+bool PylonCameraNodeBracketing::isSleeping()
 {
     return is_sleeping_;
 }
 
-bool PylonCameraNode::setOffsetXCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setOffsetXCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setOffsetXY(req.value, true);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -1881,7 +1894,7 @@ bool PylonCameraNode::setOffsetXCallback(camera_control_msgs::SetIntegerValue::R
     return true;
 }
 
-bool PylonCameraNode::setOffsetYCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setOffsetYCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setOffsetXY(req.value, false);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -1900,7 +1913,7 @@ bool PylonCameraNode::setOffsetYCallback(camera_control_msgs::SetIntegerValue::R
 }
 
 
-std::string PylonCameraNode::setOffsetXY(const int& offsetValue, bool xAxis)
+std::string PylonCameraNodeBracketing::setOffsetXY(const int& offsetValue, bool xAxis)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -1911,7 +1924,7 @@ std::string PylonCameraNode::setOffsetXY(const int& offsetValue, bool xAxis)
     return pylon_camera_->setOffsetXY(offsetValue,xAxis) ;
 }
 
-bool PylonCameraNode::setReverseXCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setReverseXCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = reverseXY(req.data, true);
     if (res.message == "done")
@@ -1929,7 +1942,7 @@ bool PylonCameraNode::setReverseXCallback(std_srvs::SetBool::Request &req, std_s
     return true;
 }
 
-bool PylonCameraNode::setReverseYCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setReverseYCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = reverseXY(req.data, false);
     if (res.message == "done")
@@ -1947,7 +1960,7 @@ bool PylonCameraNode::setReverseYCallback(std_srvs::SetBool::Request &req, std_s
     return true;
 }
 
-std::string PylonCameraNode::reverseXY(const bool& data, bool around_x)
+std::string PylonCameraNodeBracketing::reverseXY(const bool& data, bool around_x)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -1958,7 +1971,7 @@ std::string PylonCameraNode::reverseXY(const bool& data, bool around_x)
     return pylon_camera_->reverseXY(data, around_x);
 }
 
-bool PylonCameraNode::setBlackLevelCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setBlackLevelCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {   
     res.message = setBlackLevel(req.value);
     if (res.message == "done")
@@ -1976,7 +1989,7 @@ bool PylonCameraNode::setBlackLevelCallback(camera_control_msgs::SetIntegerValue
     return true;
 }
 
-std::string PylonCameraNode::setBlackLevel(const int& value)
+std::string PylonCameraNodeBracketing::setBlackLevel(const int& value)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -1988,7 +2001,7 @@ std::string PylonCameraNode::setBlackLevel(const int& value)
     return pylon_camera_->setBlackLevel(value) ;
 }
 
-bool PylonCameraNode::setPGIModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setPGIModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = setPGIMode(req.data);
     if (res.message == "done")
@@ -2006,7 +2019,7 @@ bool PylonCameraNode::setPGIModeCallback(std_srvs::SetBool::Request &req, std_sr
     return true;
 }
 
-std::string PylonCameraNode::setPGIMode(const bool& on)
+std::string PylonCameraNodeBracketing::setPGIMode(const bool& on)
 {   // mode 0 = Simple
     // mode 1 = Basler PGI
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -2018,7 +2031,7 @@ std::string PylonCameraNode::setPGIMode(const bool& on)
     return pylon_camera_->setPGIMode(on);
 }
 
-bool PylonCameraNode::setDemosaicingModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setDemosaicingModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setDemosaicingMode(req.value);
     if (res.message == "done")
@@ -2040,7 +2053,7 @@ bool PylonCameraNode::setDemosaicingModeCallback(camera_control_msgs::SetInteger
     return true;
 }
 
-std::string PylonCameraNode::setDemosaicingMode(const int& mode)
+std::string PylonCameraNodeBracketing::setDemosaicingMode(const int& mode)
 {   // mode 0 = Simple
     // mode 1 = Basler PGI
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -2052,7 +2065,7 @@ std::string PylonCameraNode::setDemosaicingMode(const int& mode)
     return pylon_camera_->setDemosaicingMode(mode);
 }
 
-bool PylonCameraNode::setNoiseReductionCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::setNoiseReductionCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
 {
     res.message = setNoiseReduction(req.value);
     if (res.message == "done")
@@ -2070,7 +2083,7 @@ bool PylonCameraNode::setNoiseReductionCallback(camera_control_msgs::SetFloatVal
     return true;
 }
 
-std::string PylonCameraNode::setNoiseReduction(const float& value)
+std::string PylonCameraNodeBracketing::setNoiseReduction(const float& value)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2081,7 +2094,7 @@ std::string PylonCameraNode::setNoiseReduction(const float& value)
     return pylon_camera_->setNoiseReduction(value);
 }
 
-bool PylonCameraNode::setSharpnessEnhancementCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::setSharpnessEnhancementCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
 {
     res.message = setSharpnessEnhancement(req.value);
     if (res.message == "done")
@@ -2099,7 +2112,7 @@ bool PylonCameraNode::setSharpnessEnhancementCallback(camera_control_msgs::SetFl
     return true;
 }
 
-std::string PylonCameraNode::setSharpnessEnhancement(const float& value)
+std::string PylonCameraNodeBracketing::setSharpnessEnhancement(const float& value)
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2110,7 +2123,7 @@ std::string PylonCameraNode::setSharpnessEnhancement(const float& value)
     return pylon_camera_->setSharpnessEnhancement(value);
 }
 
-bool PylonCameraNode::setLightSourcePresetCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setLightSourcePresetCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setLightSourcePreset(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2132,7 +2145,7 @@ bool PylonCameraNode::setLightSourcePresetCallback(camera_control_msgs::SetInteg
     return true;
 }
 
-std::string PylonCameraNode::setLightSourcePreset(const int& mode)
+std::string PylonCameraNodeBracketing::setLightSourcePreset(const int& mode)
 {   // mode 0 = Off
     // mode 1 = Daylight5000K
     // mode 2 = Daylight6500K
@@ -2146,7 +2159,7 @@ std::string PylonCameraNode::setLightSourcePreset(const int& mode)
       return pylon_camera_->setLightSourcePreset(mode) ;
 }
 
-bool PylonCameraNode::setBalanceWhiteAutoCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setBalanceWhiteAutoCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setBalanceWhiteAuto(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2168,7 +2181,7 @@ bool PylonCameraNode::setBalanceWhiteAutoCallback(camera_control_msgs::SetIntege
     return true;
 }
 
-std::string PylonCameraNode::setBalanceWhiteAuto(const int& mode)
+std::string PylonCameraNodeBracketing::setBalanceWhiteAuto(const int& mode)
 {   // mode 0 = Off
     // mode 1 = Once
     // mode 2 = Continuous
@@ -2181,7 +2194,7 @@ std::string PylonCameraNode::setBalanceWhiteAuto(const int& mode)
       return pylon_camera_->setBalanceWhiteAuto(mode) ;
 }
 
-bool PylonCameraNode::setSensorReadoutModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setSensorReadoutModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setSensorReadoutMode(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2203,7 +2216,7 @@ bool PylonCameraNode::setSensorReadoutModeCallback(camera_control_msgs::SetInteg
     return true;
 }
 
-std::string PylonCameraNode::setSensorReadoutMode(const int& mode)
+std::string PylonCameraNodeBracketing::setSensorReadoutMode(const int& mode)
 {   // mode = 0 : normal readout mode
     // mode = 1 : fast readout mode
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -2215,7 +2228,7 @@ std::string PylonCameraNode::setSensorReadoutMode(const int& mode)
     return pylon_camera_->setSensorReadoutMode(mode) ;
 }
 
-bool PylonCameraNode::setAcquisitionFrameCountCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setAcquisitionFrameCountCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setAcquisitionFrameCount(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2233,7 +2246,7 @@ bool PylonCameraNode::setAcquisitionFrameCountCallback(camera_control_msgs::SetI
     return true;
 }
 
-std::string PylonCameraNode::setAcquisitionFrameCount(const int& frameCount)
+std::string PylonCameraNodeBracketing::setAcquisitionFrameCount(const int& frameCount)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2244,7 +2257,7 @@ std::string PylonCameraNode::setAcquisitionFrameCount(const int& frameCount)
     return pylon_camera_->setAcquisitionFrameCount(frameCount) ;
 }
 
-bool PylonCameraNode::setTriggerSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setTriggerSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setTriggerSelector(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2266,7 +2279,7 @@ bool PylonCameraNode::setTriggerSelectorCallback(camera_control_msgs::SetInteger
     return true;
 }
 
-std::string PylonCameraNode::setTriggerSelector(const int& mode)
+std::string PylonCameraNodeBracketing::setTriggerSelector(const int& mode)
 {   // mode 0 = Frame start
     // mode 1 = Frame burst start (ace USB cameras) / Acquisition Start (ace GigE cameras)
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
@@ -2278,7 +2291,7 @@ std::string PylonCameraNode::setTriggerSelector(const int& mode)
     return pylon_camera_->setTriggerSelector(mode) ;
 }
 
-bool PylonCameraNode::setTriggerModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setTriggerModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = setTriggerMode(req.data);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2300,7 +2313,7 @@ bool PylonCameraNode::setTriggerModeCallback(std_srvs::SetBool::Request &req, st
     return true;
 }
 
-std::string PylonCameraNode::setTriggerMode(const bool& value)
+std::string PylonCameraNodeBracketing::setTriggerMode(const bool& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2311,7 +2324,7 @@ std::string PylonCameraNode::setTriggerMode(const bool& value)
     return pylon_camera_->setTriggerMode(value) ;
 }
 
-bool PylonCameraNode::executeSoftwareTriggerCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::executeSoftwareTriggerCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = executeSoftwareTrigger();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2329,7 +2342,7 @@ bool PylonCameraNode::executeSoftwareTriggerCallback(std_srvs::Trigger::Request 
     return true;
 }
 
-std::string PylonCameraNode::executeSoftwareTrigger()
+std::string PylonCameraNodeBracketing::executeSoftwareTrigger()
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2340,7 +2353,7 @@ std::string PylonCameraNode::executeSoftwareTrigger()
     return pylon_camera_->executeSoftwareTrigger() ;
 }
 
-bool PylonCameraNode::setTriggerSourceCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setTriggerSourceCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setTriggerSource(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2362,7 +2375,7 @@ bool PylonCameraNode::setTriggerSourceCallback(camera_control_msgs::SetIntegerVa
     return true;
 }
 
-std::string PylonCameraNode::setTriggerSource(const int& source)
+std::string PylonCameraNodeBracketing::setTriggerSource(const int& source)
 {   // source 0 = Software
     // source 1 = Line1
     // source 2 = Line3
@@ -2377,7 +2390,7 @@ std::string PylonCameraNode::setTriggerSource(const int& source)
     return pylon_camera_->setTriggerSource(source) ;
 }
 
-bool PylonCameraNode::setTriggerActivationCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setTriggerActivationCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setTriggerActivation(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2395,7 +2408,7 @@ bool PylonCameraNode::setTriggerActivationCallback(camera_control_msgs::SetInteg
     return true;
 }
 
-std::string PylonCameraNode::setTriggerActivation(const int& value)
+std::string PylonCameraNodeBracketing::setTriggerActivation(const int& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2406,7 +2419,7 @@ std::string PylonCameraNode::setTriggerActivation(const int& value)
     return pylon_camera_->setTriggerActivation(value) ;
 }
 
-bool PylonCameraNode::setTriggerDelayCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::setTriggerDelayCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
 {
     res.message = setTriggerDelay(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2424,7 +2437,7 @@ bool PylonCameraNode::setTriggerDelayCallback(camera_control_msgs::SetFloatValue
     return true;
 }
 
-std::string PylonCameraNode::setTriggerDelay(const float& value)
+std::string PylonCameraNodeBracketing::setTriggerDelay(const float& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2442,7 +2455,7 @@ std::string PylonCameraNode::setTriggerDelay(const float& value)
     }
 }
 
-bool PylonCameraNode::setLineSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setLineSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setLineSelector(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2460,7 +2473,7 @@ bool PylonCameraNode::setLineSelectorCallback(camera_control_msgs::SetIntegerVal
     return true;
 }
 
-std::string PylonCameraNode::setLineSelector(const int& value)
+std::string PylonCameraNodeBracketing::setLineSelector(const int& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2471,7 +2484,7 @@ std::string PylonCameraNode::setLineSelector(const int& value)
     return pylon_camera_->setLineSelector(value) ;
 }
 
-bool PylonCameraNode::setLineModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setLineModeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setLineMode(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2489,7 +2502,7 @@ bool PylonCameraNode::setLineModeCallback(camera_control_msgs::SetIntegerValue::
     return true;
 }
 
-std::string PylonCameraNode::setLineMode(const int& value)
+std::string PylonCameraNodeBracketing::setLineMode(const int& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2500,7 +2513,7 @@ std::string PylonCameraNode::setLineMode(const int& value)
     return pylon_camera_->setLineMode(value) ;
 }
 
-bool PylonCameraNode::setLineSourceCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setLineSourceCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setLineSource(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2518,7 +2531,7 @@ bool PylonCameraNode::setLineSourceCallback(camera_control_msgs::SetIntegerValue
     return true;
 }
 
-std::string PylonCameraNode::setLineSource(const int& value)
+std::string PylonCameraNodeBracketing::setLineSource(const int& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2529,7 +2542,7 @@ std::string PylonCameraNode::setLineSource(const int& value)
     return pylon_camera_->setLineSource(value) ;
 }
 
-bool PylonCameraNode::setLineInverterCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setLineInverterCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = setLineInverter(req.data);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2547,7 +2560,7 @@ bool PylonCameraNode::setLineInverterCallback(std_srvs::SetBool::Request &req, s
     return true;
 }
 
-std::string PylonCameraNode::setLineInverter(const bool& value)
+std::string PylonCameraNodeBracketing::setLineInverter(const bool& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2558,7 +2571,7 @@ std::string PylonCameraNode::setLineInverter(const bool& value)
     return pylon_camera_->setLineInverter(value) ;
 }
 
-bool PylonCameraNode::setLineDebouncerTimeCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::setLineDebouncerTimeCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
 {
     res.message = setLineDebouncerTime(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2576,7 +2589,7 @@ bool PylonCameraNode::setLineDebouncerTimeCallback(camera_control_msgs::SetFloat
     return true;
 }
 
-std::string PylonCameraNode::setLineDebouncerTime(const float& value)
+std::string PylonCameraNodeBracketing::setLineDebouncerTime(const float& value)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2594,7 +2607,7 @@ std::string PylonCameraNode::setLineDebouncerTime(const float& value)
     }
 }
 
-bool PylonCameraNode::setUserSetSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setUserSetSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setUserSetSelector(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2616,7 +2629,7 @@ bool PylonCameraNode::setUserSetSelectorCallback(camera_control_msgs::SetInteger
     return true;
 }
 
-std::string PylonCameraNode::setUserSetSelector(const int& set)
+std::string PylonCameraNodeBracketing::setUserSetSelector(const int& set)
 {   // set 0 = Default
     // set 1 = UserSet1
     // set 2 = UserSet2
@@ -2634,7 +2647,7 @@ std::string PylonCameraNode::setUserSetSelector(const int& set)
 }
 
 
-bool PylonCameraNode::saveUserSetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::saveUserSetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = saveUserSet();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2652,7 +2665,7 @@ bool PylonCameraNode::saveUserSetCallback(std_srvs::Trigger::Request &req, std_s
     return true;
 }
 
-std::string PylonCameraNode::saveUserSet()
+std::string PylonCameraNodeBracketing::saveUserSet()
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2663,7 +2676,7 @@ std::string PylonCameraNode::saveUserSet()
     return pylon_camera_->saveUserSet() ;
 }
 
-bool PylonCameraNode::loadUserSetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::loadUserSetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = loadUserSet();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2681,7 +2694,7 @@ bool PylonCameraNode::loadUserSetCallback(std_srvs::Trigger::Request &req, std_s
     return true;
 }
 
-std::string PylonCameraNode::loadUserSet()
+std::string PylonCameraNodeBracketing::loadUserSet()
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2692,7 +2705,7 @@ std::string PylonCameraNode::loadUserSet()
     return pylon_camera_->loadUserSet() ;
 }
 
-bool PylonCameraNode::setUserSetDefaultSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setUserSetDefaultSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setUserSetDefaultSelector(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2714,7 +2727,7 @@ bool PylonCameraNode::setUserSetDefaultSelectorCallback(camera_control_msgs::Set
     return true;
 }
 
-std::string PylonCameraNode::setUserSetDefaultSelector(const int& set)
+std::string PylonCameraNodeBracketing::setUserSetDefaultSelector(const int& set)
 {   // set 0 = Default
     // set 1 = UserSet1
     // set 2 = UserSet2
@@ -2733,7 +2746,7 @@ std::string PylonCameraNode::setUserSetDefaultSelector(const int& set)
 
 // USER CONTROL
 
-bool PylonCameraNode::setDeviceLinkThroughputLimitModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setDeviceLinkThroughputLimitModeCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = setDeviceLinkThroughputLimitMode(req.data);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2751,7 +2764,7 @@ bool PylonCameraNode::setDeviceLinkThroughputLimitModeCallback(std_srvs::SetBool
     return true;
 }
 
-std::string PylonCameraNode::setDeviceLinkThroughputLimitMode(const bool& turnOn)
+std::string PylonCameraNodeBracketing::setDeviceLinkThroughputLimitMode(const bool& turnOn)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2762,7 +2775,7 @@ std::string PylonCameraNode::setDeviceLinkThroughputLimitMode(const bool& turnOn
       return pylon_camera_->setDeviceLinkThroughputLimitMode(turnOn) ;
 }
 
-bool PylonCameraNode::setDeviceLinkThroughputLimitCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setDeviceLinkThroughputLimitCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setDeviceLinkThroughputLimit(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2780,7 +2793,7 @@ bool PylonCameraNode::setDeviceLinkThroughputLimitCallback(camera_control_msgs::
     return true;
 }
 
-std::string PylonCameraNode::setDeviceLinkThroughputLimit(const int& limit)
+std::string PylonCameraNodeBracketing::setDeviceLinkThroughputLimit(const int& limit)
 {   
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2791,7 +2804,7 @@ std::string PylonCameraNode::setDeviceLinkThroughputLimit(const int& limit)
       return pylon_camera_->setDeviceLinkThroughputLimit(limit) ;
 }
 
-bool PylonCameraNode::triggerDeviceResetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::triggerDeviceResetCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = triggerDeviceReset();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2805,7 +2818,7 @@ bool PylonCameraNode::triggerDeviceResetCallback(std_srvs::Trigger::Request &req
     return true;
 }
 
-std::string PylonCameraNode::triggerDeviceReset()
+std::string PylonCameraNodeBracketing::triggerDeviceReset()
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2816,7 +2829,7 @@ std::string PylonCameraNode::triggerDeviceReset()
     return pylon_camera_->triggerDeviceReset() ;
 }
 
-bool PylonCameraNode::StartGrabbingCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::StartGrabbingCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = grabbingStarting();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2830,7 +2843,7 @@ bool PylonCameraNode::StartGrabbingCallback(std_srvs::Trigger::Request &req, std
     return true;
 }
 
-std::string PylonCameraNode::grabbingStarting()
+std::string PylonCameraNodeBracketing::grabbingStarting()
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2848,7 +2861,7 @@ std::string PylonCameraNode::grabbingStarting()
     }
 }
 
-bool PylonCameraNode::StopGrabbingCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool PylonCameraNodeBracketing::StopGrabbingCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
     res.message = grabbingStopping();
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2862,7 +2875,7 @@ bool PylonCameraNode::StopGrabbingCallback(std_srvs::Trigger::Request &req, std_
     return true;
 }
 
-std::string PylonCameraNode::grabbingStopping()
+std::string PylonCameraNodeBracketing::grabbingStopping()
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2873,7 +2886,7 @@ std::string PylonCameraNode::grabbingStopping()
     return pylon_camera_->grabbingStopping() ;
 }
 
-bool PylonCameraNode::setImageEncodingCallback(camera_control_msgs::SetStringValue::Request &req, camera_control_msgs::SetStringValue::Response &res)
+bool PylonCameraNodeBracketing::setImageEncodingCallback(camera_control_msgs::SetStringValue::Request &req, camera_control_msgs::SetStringValue::Response &res)
 {
     grabbingStopping(); // Stop grabbing for better user experience
     res.message = setImageEncoding(req.value);
@@ -2894,7 +2907,7 @@ bool PylonCameraNode::setImageEncodingCallback(camera_control_msgs::SetStringVal
     return true;
 }
 
-std::string PylonCameraNode::setImageEncoding(const std::string& target_ros_encoding)
+std::string PylonCameraNodeBracketing::setImageEncoding(const std::string& target_ros_encoding)
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2905,7 +2918,7 @@ std::string PylonCameraNode::setImageEncoding(const std::string& target_ros_enco
     return pylon_camera_->setImageEncoding(target_ros_encoding) ;
 }
 
-bool PylonCameraNode::setMaxTransferSizeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setMaxTransferSizeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setMaxTransferSize(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2923,7 +2936,7 @@ bool PylonCameraNode::setMaxTransferSizeCallback(camera_control_msgs::SetInteger
     return true;
 }
 
-std::string PylonCameraNode::setMaxTransferSize(const int& maxTransferSize)
+std::string PylonCameraNodeBracketing::setMaxTransferSize(const int& maxTransferSize)
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2934,7 +2947,7 @@ std::string PylonCameraNode::setMaxTransferSize(const int& maxTransferSize)
     return pylon_camera_->setMaxTransferSize(maxTransferSize) ;
 }
 
-bool PylonCameraNode::setGammaSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setGammaSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     res.message = setGammaSelector(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2952,7 +2965,7 @@ bool PylonCameraNode::setGammaSelectorCallback(camera_control_msgs::SetIntegerVa
     return true;
 }
 
-std::string PylonCameraNode::setGammaSelector(const int& gammaSelector)
+std::string PylonCameraNodeBracketing::setGammaSelector(const int& gammaSelector)
 {  
     // gammaSelector 0 = User
     // gammaSelector 1 = sRGB
@@ -2965,7 +2978,7 @@ std::string PylonCameraNode::setGammaSelector(const int& gammaSelector)
     return pylon_camera_->setGammaSelector(gammaSelector) ;
 }
 
-bool PylonCameraNode::gammaEnableCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::gammaEnableCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = gammaEnable(req.data);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -2983,7 +2996,7 @@ bool PylonCameraNode::gammaEnableCallback(std_srvs::SetBool::Request &req, std_s
     return true;
 }
 
-std::string PylonCameraNode::gammaEnable(const int& enable)
+std::string PylonCameraNodeBracketing::gammaEnable(const int& enable)
 {  
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
     if ( !pylon_camera_->isReady() )
@@ -2995,7 +3008,7 @@ std::string PylonCameraNode::gammaEnable(const int& enable)
 }
 
 
-bool PylonCameraNode::setGrabTimeoutCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setGrabTimeoutCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     grabbingStopping();
     try {
@@ -3008,7 +3021,7 @@ bool PylonCameraNode::setGrabTimeoutCallback(camera_control_msgs::SetIntegerValu
     return true;
 }
 
-bool PylonCameraNode::setTriggerTimeoutCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setTriggerTimeoutCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
     grabbingStopping();
     try {
@@ -3021,7 +3034,7 @@ bool PylonCameraNode::setTriggerTimeoutCallback(camera_control_msgs::SetIntegerV
     return true;
 }
 
-bool PylonCameraNode::setWhiteBalanceCallback(camera_control_msgs::SetWhiteBalance::Request &req, camera_control_msgs::SetWhiteBalance::Response &res)
+bool PylonCameraNodeBracketing::setWhiteBalanceCallback(camera_control_msgs::SetWhiteBalance::Request &req, camera_control_msgs::SetWhiteBalance::Response &res)
 {
     try {
         res.message = pylon_camera_->setWhiteBalance(req.balance_ratio_red, req.balance_ratio_green, req.balance_ratio_blue);
@@ -3036,7 +3049,7 @@ bool PylonCameraNode::setWhiteBalanceCallback(camera_control_msgs::SetWhiteBalan
     return true;
 }
 
-bool PylonCameraNode::setGrabbingStrategyCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setGrabbingStrategyCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {   // set 0 = GrabStrategy_OneByOne
     // set 1 = GrabStrategy_LatestImageOnly
     // set 2 = GrabStrategy_LatestImages
@@ -3058,7 +3071,7 @@ bool PylonCameraNode::setGrabbingStrategyCallback(camera_control_msgs::SetIntege
 }
 
 
-bool PylonCameraNode::setOutputQueueSizeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setOutputQueueSizeCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
 
     grabbingStopping();
@@ -3074,7 +3087,7 @@ bool PylonCameraNode::setOutputQueueSizeCallback(camera_control_msgs::SetInteger
     return true;
 }
 
-bool PylonCameraNode::setMaxNumBufferCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setMaxNumBufferCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
 
     res.message = pylon_camera_->setMaxNumBuffer(req.value);
@@ -3088,7 +3101,7 @@ bool PylonCameraNode::setMaxNumBufferCallback(camera_control_msgs::SetIntegerVal
     return true;
 }
 
-bool PylonCameraNode::getMaxNumBufferCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getMaxNumBufferCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getMaxNumBuffer();
    if (value == -1 ) {
@@ -3104,7 +3117,7 @@ bool PylonCameraNode::getMaxNumBufferCallback(camera_control_msgs::GetIntegerVal
     return true;
 }
 
-bool PylonCameraNode::getStatisticTotalBufferCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticTotalBufferCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticTotalBufferCount();
    if (value == -1 ) {
@@ -3120,7 +3133,7 @@ bool PylonCameraNode::getStatisticTotalBufferCountCallback(camera_control_msgs::
     return true;
 }
 
-bool PylonCameraNode::getStatisticFailedBufferCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticFailedBufferCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticFailedBufferCount();
    if (value == -1 ) {
@@ -3137,7 +3150,7 @@ bool PylonCameraNode::getStatisticFailedBufferCountCallback(camera_control_msgs:
 }
 
 
-bool PylonCameraNode::getStatisticBufferUnderrunCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticBufferUnderrunCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticBufferUnderrunCount();
    if (value == -1 ) {
@@ -3153,7 +3166,7 @@ bool PylonCameraNode::getStatisticBufferUnderrunCountCallback(camera_control_msg
     return true;
 }
 
-bool PylonCameraNode::getStatisticFailedPacketCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticFailedPacketCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticFailedPacketCount();
    if (value == -1 ) {
@@ -3169,7 +3182,7 @@ bool PylonCameraNode::getStatisticFailedPacketCountCallback(camera_control_msgs:
     return true;
 }
 
-bool PylonCameraNode::getStatisticResendRequestCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticResendRequestCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticResendRequestCount();
    if (value == -1 ) {
@@ -3185,7 +3198,7 @@ bool PylonCameraNode::getStatisticResendRequestCountCallback(camera_control_msgs
     return true;
 }
 
-bool PylonCameraNode::getStatisticMissedFrameCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticMissedFrameCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticMissedFrameCount();
    if (value == -1 ) {
@@ -3201,7 +3214,7 @@ bool PylonCameraNode::getStatisticMissedFrameCountCallback(camera_control_msgs::
     return true;
 }
 
-bool PylonCameraNode::getStatisticResynchronizationCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getStatisticResynchronizationCountCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getStatisticResynchronizationCount();
    if (value == -1 ) {
@@ -3217,7 +3230,7 @@ bool PylonCameraNode::getStatisticResynchronizationCountCallback(camera_control_
     return true;
 }
 
-bool PylonCameraNode::setChunkModeActiveCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setChunkModeActiveCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = pylon_camera_->setChunkModeActive(req.data);
     if (res.message == "done") {
@@ -3230,7 +3243,7 @@ bool PylonCameraNode::setChunkModeActiveCallback(std_srvs::SetBool::Request &req
     return true;
 }
 
-bool PylonCameraNode::getChunkModeActiveCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkModeActiveCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
 
     int value = pylon_camera_->getChunkModeActive();
@@ -3250,7 +3263,7 @@ bool PylonCameraNode::getChunkModeActiveCallback(camera_control_msgs::GetInteger
     return true;
 }
 
-bool PylonCameraNode::setChunkSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::setChunkSelectorCallback(camera_control_msgs::SetIntegerValue::Request &req, camera_control_msgs::SetIntegerValue::Response &res)
 {
 
     res.message = pylon_camera_->setChunkSelector(req.value);
@@ -3264,7 +3277,7 @@ bool PylonCameraNode::setChunkSelectorCallback(camera_control_msgs::SetIntegerVa
     return true;
 }
 
-bool PylonCameraNode::getChunkSelectorCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkSelectorCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
 
     int value = pylon_camera_->getChunkSelector();
@@ -3284,7 +3297,7 @@ bool PylonCameraNode::getChunkSelectorCallback(camera_control_msgs::GetIntegerVa
     return true;
 }
 
-bool PylonCameraNode::setChunkEnableCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+bool PylonCameraNodeBracketing::setChunkEnableCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
 {
     res.message = pylon_camera_->setChunkEnable(req.data);
     if (res.message == "done") {
@@ -3297,7 +3310,7 @@ bool PylonCameraNode::setChunkEnableCallback(std_srvs::SetBool::Request &req, st
     return true;
 }
 
-bool PylonCameraNode::getChunkEnableCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkEnableCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
 
     int value = pylon_camera_->getChunkEnable();
@@ -3317,7 +3330,7 @@ bool PylonCameraNode::getChunkEnableCallback(camera_control_msgs::GetIntegerValu
     return true;
 }
 
-bool PylonCameraNode::getChunkTimestampCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkTimestampCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getChunkTimestamp();
    if (value == -1 ) {
@@ -3333,7 +3346,7 @@ bool PylonCameraNode::getChunkTimestampCallback(camera_control_msgs::GetIntegerV
     return true;
 }
 
-bool PylonCameraNode::getChunkExposureTimeCallback(camera_control_msgs::GetFloatValue::Request &req, camera_control_msgs::GetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkExposureTimeCallback(camera_control_msgs::GetFloatValue::Request &req, camera_control_msgs::GetFloatValue::Response &res)
 {
    float value = pylon_camera_->getChunkExposureTime();
    if (value == -1.0 ) {
@@ -3349,7 +3362,7 @@ bool PylonCameraNode::getChunkExposureTimeCallback(camera_control_msgs::GetFloat
     return true;
 }
 
-bool PylonCameraNode::setChunkExposureTimeCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
+bool PylonCameraNodeBracketing::setChunkExposureTimeCallback(camera_control_msgs::SetFloatValue::Request &req, camera_control_msgs::SetFloatValue::Response &res)
 {
     res.message = pylon_camera_->setChunkExposureTime(req.value);
     if ((res.message.find("done") != std::string::npos) != 0)
@@ -3362,7 +3375,7 @@ bool PylonCameraNode::setChunkExposureTimeCallback(camera_control_msgs::SetFloat
     return true;
 }
 
-bool PylonCameraNode::getChunkLineStatusAllCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkLineStatusAllCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getChunkLineStatusAll();
    if (value == -1 ) {
@@ -3378,7 +3391,7 @@ bool PylonCameraNode::getChunkLineStatusAllCallback(camera_control_msgs::GetInte
     return true;
 }
 
-bool PylonCameraNode::getChunkFramecounterCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkFramecounterCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getChunkFramecounter();
    if (value == -1 ) {
@@ -3394,7 +3407,7 @@ bool PylonCameraNode::getChunkFramecounterCallback(camera_control_msgs::GetInteg
     return true;
 }
 
-bool PylonCameraNode::getChunkCounterValueCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
+bool PylonCameraNodeBracketing::getChunkCounterValueCallback(camera_control_msgs::GetIntegerValue::Request &req, camera_control_msgs::GetIntegerValue::Response &res)
 {
    int value = pylon_camera_->getChunkCounterValue();
    if (value == -1 ) {
@@ -3410,7 +3423,7 @@ bool PylonCameraNode::getChunkCounterValueCallback(camera_control_msgs::GetInteg
     return true;
 }
 
-void PylonCameraNode::currentParamPub()
+void PylonCameraNodeBracketing::currentParamPub()
 {
   boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
   if ( !pylon_camera_->isReady() )
@@ -3469,7 +3482,7 @@ void PylonCameraNode::currentParamPub()
   currentParamsPublisher.publish(params);
 }
 
-PylonCameraNode::~PylonCameraNode()
+PylonCameraNodeBracketing::~PylonCameraNodeBracketing()
 {
     if ( pylon_camera_ )
     {

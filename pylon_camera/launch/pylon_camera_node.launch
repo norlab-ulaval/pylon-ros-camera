@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <launch>
+<!-- <group ns="camera2"> -->
     <arg name="respawn" default="false" />
     <arg name="debug" default="false" />
     <arg name="node_name" default="pylon_camera_node" />
     <arg name="mtu_size" default="1500" />
-    <arg name="startup_user_set" default="CurrentSetting" />
+    <arg name="startup_user_set" default="UserSet1" />
     <arg name="enable_status_publisher" default="true" />
-    <arg name="enable_current_params_publisher" default="true" />
-    <arg name="config_file" default="$(find pylon_camera)/config/default.yaml" />
+    <arg name="enable_current_params_publisher" default="false" />
+    <arg name="config_file" default="$(find pylon_camera)/config/config_camera2.yaml" />
 
     <arg unless="$(arg debug)" name="launch_prefix" value="" />
     <arg     if="$(arg debug)" name="launch_prefix" value="gdb -ex run --args" />
@@ -20,5 +21,6 @@
         <param name="enable_status_publisher" value="$(arg enable_status_publisher)"/>
         <param name="enable_current_params_publisher" value="$(arg enable_current_params_publisher)"/>
     </node>
+<!-- </group> -->
 
 </launch>
