@@ -78,7 +78,9 @@ PylonCameraParameter::PylonCameraParameter() :
         white_balance_ratio_red_(1.0),
         white_balance_ratio_green_(1.0),
         white_balance_ratio_blue_(1.0),
-        white_balance_ratio_given_(false)
+        white_balance_ratio_given_(false),
+        // ###############################
+        bracketing_values_(std::vector<float> { 1.0,2.0,3.0 })
 {}
 
 PylonCameraParameter::~PylonCameraParameter()
@@ -296,6 +298,10 @@ void PylonCameraParameter::readFromRosParameterServer(const ros::NodeHandle& nh)
     if ( nh.hasParam("grab_strategy") )
     {
         nh.getParam("grab_strategy", grab_strategy_);
+    }
+    if ( nh.hasParam("bracketing_values") )
+    {
+        nh.getParam("bracketing_values", bracketing_values_);
     }
 
     nh.param<bool>("auto_flash", auto_flash_, false);

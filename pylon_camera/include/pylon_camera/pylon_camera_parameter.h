@@ -338,6 +338,11 @@ public:
     */
     int grab_strategy_;
 
+    /**
+     * Bracketing values array
+     */
+    std::vector<float> bracketing_values_;
+
 
 protected:
     /**

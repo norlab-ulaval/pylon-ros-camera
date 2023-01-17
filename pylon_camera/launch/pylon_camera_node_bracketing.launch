@@ -20,6 +20,8 @@
         	<param name="startup_user_set" value="$(arg startup_user_set)"/>
         	<param name="enable_status_publisher" value="$(arg enable_status_publisher)"/>
         	<param name="enable_current_params_publisher" value="$(arg enable_current_params_publisher)"/>
+			<!-- <param name="bracketing_values" value="$(arg bracketing_values)"/> -->
+			<rosparam param="bracketing_values">[1000.0, 2000.0, 4000.0, 8000.0, 16000.0]</rosparam>
     	</node>
     </group>
     
