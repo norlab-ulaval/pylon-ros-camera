@@ -743,7 +743,7 @@ void PylonCameraNodeBracketing::spin()
             float reached_exposure;
             setExposure(pylon_camera_parameter_set_.bracketing_values_[idx_exposure], reached_exposure);
             // std::cout << "VALUES: " << pylon_camera_parameter_set_.bracketing_values_[0] << std::endl;
-            std::cout << "Exposure reached: " << reached_exposure << std::endl;
+            //std::cout << "Exposure reached: " << reached_exposure << std::endl;
             idx_exposure++;
             if (idx_exposure >= exposures.size()) {
                 idx_exposure = 0;
