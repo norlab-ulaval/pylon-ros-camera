@@ -317,6 +317,8 @@ public:
 
     virtual std::string setTimerDuration(const float& duration) override;
 
+    virtual std::string getPTPStatus(int64_t& offset_from_master, std::string& status, std::string& servo_status);
+
     virtual std::string setPTPPriority(const int& value) override;
 
     virtual std::string setPTPProfile(const int& value) override;
