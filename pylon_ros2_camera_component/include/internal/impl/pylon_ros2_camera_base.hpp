@@ -416,6 +416,10 @@ bool PylonROS2CameraImpl<CameraTraitT>::startGrabbing(const PylonROS2CameraParam
     return true;
 }
 
+uint64_t prev_cam_time = 0;
+uint64_t prev_ros_time = 0;
+
+
 // Grab a picture as std::vector of 8bits objects
 template <typename CameraTrait>
 bool PylonROS2CameraImpl<CameraTrait>::grab(std::vector<uint8_t>& image, rclcpp::Time &stamp)
@@ -455,6 +459,7 @@ bool PylonROS2CameraImpl<CameraTrait>::grab(std::vector<uint8_t>& image, rclcpp:
         const std::string success = this->setChunkSelector(29); // = ChunkSelector_Timestamp
         if (success.find("done") != std::string::npos && this->getChunkEnable() == 1)
         {
+            RCLCPP_DEBUG_STREAM(LOGGER_BASE, "Chunk timestamp success");
             use_chunk_timestamp = true;
         }
     }
@@ -469,13 +474,30 @@ bool PylonROS2CameraImpl<CameraTrait>::grab(std::vector<uint8_t>& image, rclcpp:
             }
             else
             {
-                stamp = rclcpp::Time(static_cast<uint64_t>(ptr_grab_result->ChunkTimestamp.GetValue()));
+                auto stamp_chunk = rclcpp::Time(static_cast<uint64_t>(ptr_grab_result->ChunkTimestamp.GetValue()));
+                RCLCPP_INFO_STREAM(LOGGER_BASE, "ROS time diff: " << (stamp.nanoseconds() - prev_ros_time)/1e6
+                                    << " ms. Cam time diff: " << (stamp_chunk.nanoseconds() - prev_cam_time)/1e6 << " ms");
+
+                prev_ros_time = stamp.nanoseconds();
+                stamp = stamp_chunk;
+                prev_cam_time = stamp.nanoseconds();
             }
         }
         catch (const GenICam::GenericException &e)
         {
             RCLCPP_WARN_STREAM(LOGGER_BASE, "An exception while getting the chunk timestamp occurred: " << e.GetDescription());
         }
+    }
+    try {
+        cam_->PtpDataSetLatch();
+        Basler_UniversalCameraParams::PtpStatusEnums status = cam_->PtpStatus.GetValue();
+        Basler_UniversalCameraParams::PtpServoStatusEnums servo_status = cam_->PtpServoStatus.GetValue();
+        int64_t offset_from_master  = cam_->PtpOffsetFromMaster.GetValue();
+        std::cout << "Ptp status("<< status << "): " << cam_->PtpStatus.ToString(status)  << ", servo("<< servo_status << "): " << cam_->PtpServoStatus.ToString(servo_status)  << " delay: " << offset_from_master << std::endl;
+    }
+    catch (const GenICam::GenericException &e)
+    {
+        RCLCPP_WARN_STREAM(LOGGER_BASE, "An exception while checking ptp status: " << e.GetDescription());
     }
 
     if (!is_ready_)
