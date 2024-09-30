@@ -5096,6 +5096,18 @@ void PylonROS2CameraNode::publishCurrentParams()
       this->current_params_.temperature = this->pylon_camera_->getTemperature();
       this->current_params_.max_num_buffer = this->pylon_camera_->getMaxNumBuffer();
 
+      int64_t offset_from_master = 0;
+      std::string status = "UNKNOWN";
+      std::string servo_status  = "UNKNOWN";
+      std::string response = this->pylon_camera_->getPTPStatus(offset_from_master, status, servo_status);
+
+      if (response.find("done") != std::string::npos)
+      {
+        this->current_params_.ptp_status = status;
+        this->current_params_.ptp_servo_status = servo_status;
+        this->current_params_.ptp_offset = offset_from_master;
+      }
+
       this->current_params_.success = true;
     }
     catch (const GenICam::GenericException &e)
