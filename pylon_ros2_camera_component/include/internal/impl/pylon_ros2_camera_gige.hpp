@@ -1541,9 +1541,9 @@ float PylonROS2GigECamera::getTemperature()
 {
     try
     {
-        if ( GenApi::IsAvailable(cam_->TemperatureAbs) )
+        if ( GenApi::IsAvailable(cam_->DeviceTemperature) )
         {  
-            return static_cast<float>(cam_->TemperatureAbs.GetValue());   
+            return static_cast<float>(cam_->DeviceTemperature.GetValue());
         }
         else 
         {
