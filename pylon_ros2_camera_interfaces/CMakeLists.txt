@@ -38,6 +38,7 @@ set(SRV_FILES
   "srv/GetIntegerValue.srv"
   "srv/GetFloatValue.srv"
   "srv/GetStringValue.srv"
+  "srv/GetPtpStatus.srv"
   "srv/SetBinning.srv"
   "srv/SetBrightness.srv"
   "srv/SetExposure.srv"

@@ -1012,6 +1012,12 @@ public:
     */
     virtual std::string setTimerDuration(const float& duration) = 0;
 
+     /**
+     * Sets the PTP priority - Applies to: ace 2 GigE.
+     * @return error message if an error occurred or done message otherwise.
+     */
+    virtual std::string getPTPStatus(int64_t& offset_from_master, std::string& status, std::string& servo_status) = 0;
+
     /**
      * Sets the PTP priority - Applies to: ace 2 GigE.
      * @return error message if an error occurred or done message otherwise.

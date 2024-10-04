@@ -4465,6 +4465,28 @@ std::string PylonROS2CameraImpl<CameraTraitT>::setTimerDuration(const float& dur
 }
 
 template <typename CameraTraitT>
+std::string PylonROS2CameraImpl<CameraTraitT>::getPTPStatus(int64_t& offset_from_master, std::string& status, std::string& servo_status)
+{
+    try
+    {
+        cam_->PtpDataSetLatch();
+        Basler_UniversalCameraParams::PtpStatusEnums status_enum = cam_->PtpStatus.GetValue();
+        Basler_UniversalCameraParams::PtpServoStatusEnums servo_status_enum = cam_->PtpServoStatus.GetValue();
+        offset_from_master  = cam_->PtpOffsetFromMaster.GetValue();
+
+        status = cam_->PtpStatus.ToString(status_enum);
+        servo_status = cam_->PtpServoStatus.ToString(servo_status_enum);
+
+        return "done";
+    }
+    catch (const GenICam::GenericException &e)
+    {
+        RCLCPP_ERROR_STREAM(LOGGER_BASE, "An exception while getting PTP status:" << e.GetDescription());
+        return e.GetDescription();
+    }
+}
+
+template <typename CameraTraitT>
 std::string PylonROS2CameraImpl<CameraTraitT>::setPTPPriority(const int& value)
 {
     try

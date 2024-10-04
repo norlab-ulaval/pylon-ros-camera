@@ -349,6 +349,9 @@ void PylonROS2CameraNode::initServices()
   srv_name = srv_prefix + "set_timer_trigger_source";
   this->set_timer_trigger_source_srv_ = this->create_service<SetIntegerSrv>(srv_name, std::bind(&PylonROS2CameraNode::setTimerTriggerSourceCallback, this, _1, _2));
 
+  srv_name = srv_prefix + "get_ptp_status";
+  this->get_ptp_status_srv_ = this->create_service<GetPtpStatusSrv>(srv_name, std::bind(&PylonROS2CameraNode::getPTPStatusCallback, this, _1, _2));
+
   srv_name = srv_prefix + "set_ptp_priority";
   this->set_ptp_priority_srv_ = this->create_service<SetIntegerSrv>(srv_name, std::bind(&PylonROS2CameraNode::setPTPPriorityCallback, this, _1, _2));
   
@@ -3272,6 +3275,28 @@ void PylonROS2CameraNode::setTimerTriggerSourceCallback(const std::shared_ptr<Se
 
   if (response->message.find("done") != std::string::npos)
   {
+    response->success = true;
+  }
+  else
+  {
+    response->success = false;
+  }
+}
+
+void PylonROS2CameraNode::getPTPStatusCallback(const std::shared_ptr<GetPtpStatusSrv::Request> request,
+                                                 std::shared_ptr<GetPtpStatusSrv::Response> response)
+{
+  (void)request;
+  int64_t offset_from_master;
+  std::string status;
+  std::string servo_status;
+  response->message = this->pylon_camera_->getPTPStatus(offset_from_master, status, servo_status);
+
+  if (response->message.find("done") != std::string::npos)
+  {
+    response->ptp_status = status;
+    response->ptp_servo_status = servo_status;
+    response->offset_from_master = offset_from_master;
     response->success = true;
   }
   else
