@@ -463,6 +463,12 @@ bool PylonCameraNode::startGrabbing()
     ptp_status_pub_ = nh_.advertise<std_msgs::String>("ptp_status", 1);
     if ( pylon_camera_parameter_set_.enable_ptp_ )
     {
+        // the profile only changes while PTP is off; the camera's user set may hold another one
+        if ( !pylon_camera_parameter_set_.ptp_profile_.empty() )
+        {
+            pylon_camera_->setPtpEnabled(false);
+            pylon_camera_->setPtpProfile(pylon_camera_parameter_set_.ptp_profile_);
+        }
         if ( pylon_camera_->setPtpEnabled(true) )
         {
             ROS_INFO("PTP enabled on the camera, the camera clock is used for the image stamps once it is a locked slave");

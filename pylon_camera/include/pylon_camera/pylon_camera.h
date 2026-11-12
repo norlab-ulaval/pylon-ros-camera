@@ -927,6 +927,12 @@ public:
     virtual bool setPtpEnabled(bool enable) = 0;
 
     /**
+     * Sets the PTP profile (BslPtpProfile on ace 2: DelayRequestResponseDefaultProfile = E2E,
+     * PeerToPeerDefaultProfile = P2P). PTP must be disabled while it changes.
+     */
+    virtual bool setPtpProfile(const std::string& profile) = 0;
+
+    /**
      * PTP status of the camera ("Slave", "Master", "Listening", ...) and its offset to the master in ns,
      * "unsupported" if the camera has no PTP feature.
      */

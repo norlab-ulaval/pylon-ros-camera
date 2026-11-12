@@ -65,6 +65,7 @@ PylonCameraParameter::PylonCameraParameter() :
         auto_exp_upper_lim_(0.0),
         mtu_size_(3000),
         enable_ptp_(false),
+        ptp_profile_(""),
         timestamp_source_("auto"),
         ptp_max_offset_(0.001),
         timestamp_offset_(0.0),
@@ -284,6 +285,7 @@ void PylonCameraParameter::readFromRosParameterServer(const ros::NodeHandle& nh)
         nh.getParam("trigger_timeout", trigger_timeout_);
     }
     nh.getParam("enable_ptp", enable_ptp_);
+    nh.getParam("ptp_profile", ptp_profile_);
     nh.getParam("timestamp_source", timestamp_source_);
     nh.getParam("ptp_max_offset", ptp_max_offset_);
     nh.getParam("timestamp_offset", timestamp_offset_);

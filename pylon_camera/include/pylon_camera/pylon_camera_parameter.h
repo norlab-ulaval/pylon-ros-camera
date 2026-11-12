@@ -262,6 +262,11 @@ public:
     bool enable_ptp_;
 
     /**
+     * PTP profile set before enabling PTP (BslPtpProfile, ace 2), empty to keep the camera's.
+     */
+    std::string ptp_profile_;
+
+    /**
      * Where the image header stamp comes from: "auto" (the camera clock when PTP is locked, else the host time
      * after the grab), "camera" (same, but warns loudly when it falls back), "host_post_grab" or "host_pre_grab"
      * (the host time before the grab, the old behaviour).

@@ -295,6 +295,8 @@ public:
 
     virtual bool setPtpEnabled(bool enable);
 
+    virtual bool setPtpProfile(const std::string& profile);
+
     virtual std::string getPtpStatus(int64_t& offset_ns);
 
     virtual uint64_t getLastTimestampTicks();

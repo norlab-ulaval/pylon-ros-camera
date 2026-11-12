@@ -3505,6 +3505,26 @@ bool PylonCameraImpl<CameraTraitT>::setPtpEnabled(bool enable)
 }
 
 template <typename CameraTraitT>
+bool PylonCameraImpl<CameraTraitT>::setPtpProfile(const std::string& profile)
+{
+    try
+    {
+        GenApi::CEnumerationPtr feature(cam_->GetNodeMap().GetNode("BslPtpProfile"));
+        if (feature.IsValid() && GenApi::IsWritable(feature))
+        {
+            feature->FromString(profile.c_str());
+            return true;
+        }
+        ROS_WARN("The camera has no writable PTP profile (BslPtpProfile)");
+    }
+    catch (const GenICam::GenericException& e)
+    {
+        ROS_ERROR_STREAM("Could not set the PTP profile to " << profile << ": " << e.GetDescription());
+    }
+    return false;
+}
+
+template <typename CameraTraitT>
 std::string PylonCameraImpl<CameraTraitT>::getPtpStatus(int64_t& offset_ns)
 {
     offset_ns = 0;
