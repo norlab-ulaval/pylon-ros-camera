@@ -3505,6 +3505,35 @@ bool PylonCameraImpl<CameraTraitT>::setPtpEnabled(bool enable)
 }
 
 template <typename CameraTraitT>
+bool PylonCameraImpl<CameraTraitT>::setAcquisitionFrameRate(double rate)
+{
+    try
+    {
+        GenApi::INodeMap& node_map = cam_->GetNodeMap();
+        GenApi::CBooleanPtr enable(node_map.GetNode("AcquisitionFrameRateEnable"));
+        if (enable.IsValid() && GenApi::IsWritable(enable))
+        {
+            enable->SetValue(true);
+        }
+        for (const char* name : {"AcquisitionFrameRate", "AcquisitionFrameRateAbs"})
+        {
+            GenApi::CFloatPtr feature(node_map.GetNode(name));
+            if (feature.IsValid() && GenApi::IsWritable(feature))
+            {
+                feature->SetValue(std::min(std::max(rate, feature->GetMin()), feature->GetMax()));
+                return true;
+            }
+        }
+        ROS_WARN("The camera has no writable acquisition frame rate");
+    }
+    catch (const GenICam::GenericException& e)
+    {
+        ROS_ERROR_STREAM("Could not set the acquisition frame rate to " << rate << ": " << e.GetDescription());
+    }
+    return false;
+}
+
+template <typename CameraTraitT>
 bool PylonCameraImpl<CameraTraitT>::setPtpProfile(const std::string& profile)
 {
     try

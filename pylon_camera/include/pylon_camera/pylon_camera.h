@@ -926,6 +926,9 @@ public:
      */
     virtual bool setPtpEnabled(bool enable) = 0;
 
+    /// Sets the camera's free-run acquisition frame rate (AcquisitionFrameRate, or AcquisitionFrameRateAbs on ace GigE).
+    virtual bool setAcquisitionFrameRate(double rate) = 0;
+
     /**
      * Sets the PTP profile (BslPtpProfile on ace 2: DelayRequestResponseDefaultProfile = E2E,
      * PeerToPeerDefaultProfile = P2P). PTP must be disabled while it changes.

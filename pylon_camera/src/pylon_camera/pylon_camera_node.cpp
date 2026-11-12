@@ -633,6 +633,11 @@ bool PylonCameraNode::startGrabbing()
             << "shutter mode = "
             << pylon_camera_parameter_set_.shutterModeString());
     // Framerate Settings
+    // frame_rate also sets the camera's own rate: a rate saved in its user set would otherwise cap the node
+    if ( pylon_camera_parameter_set_.frameRate() > 0 )
+    {
+        pylon_camera_->setAcquisitionFrameRate(pylon_camera_parameter_set_.frameRate());
+    }
     if ( pylon_camera_->maxPossibleFramerate() < pylon_camera_parameter_set_.frameRate() )
     {   
         ROS_INFO("Desired framerate %.2f is higher than max possible. Will limit framerate to: %.2f Hz",
