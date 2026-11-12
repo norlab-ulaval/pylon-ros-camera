@@ -30,6 +30,7 @@
  *****************************************************************************/
 
 #include <pylon_camera/pylon_camera_node.h>
+#include <std_msgs/String.h>
 #include <GenApi/GenApi.h>
 #include <algorithm>
 #include <cmath>
@@ -459,6 +460,16 @@ bool PylonCameraNode::startGrabbing()
         return false;
     }
 
+    ptp_status_pub_ = nh_.advertise<std_msgs::String>("ptp_status", 1);
+    if ( pylon_camera_parameter_set_.enable_ptp_ )
+    {
+        if ( pylon_camera_->setPtpEnabled(true) )
+        {
+            ROS_INFO("PTP enabled on the camera, the camera clock is used for the image stamps once it is a locked slave");
+        }
+    }
+    last_ptp_check_ = ros::Time(0);
+
     size_t num_user_outputs = pylon_camera_->numUserOutputs();
     set_user_output_srvs_.resize(2*num_user_outputs);
     for ( int i = 0; i < num_user_outputs; ++i )
@@ -789,14 +800,73 @@ void PylonCameraNode::spin()
 bool PylonCameraNode::grabImage()
 {
     boost::lock_guard<boost::recursive_mutex> lock(grab_mutex_);
-    // Store current time before the image is transmitted for a more accurate grab time estimation
-    ros::Time grab_time = ros::Time::now();
+    const ros::Time pre_grab = ros::Time::now();
     if ( !pylon_camera_->grab(img_raw_msg_.data) )
     {
         return false;
     }
-    img_raw_msg_.header.stamp = grab_time; 
+    const ros::Time post_grab = ros::Time::now();
+    updatePtpStatus();
+    img_raw_msg_.header.stamp = imageStamp(pre_grab, post_grab);
     return true;
+}
+
+void PylonCameraNode::updatePtpStatus()
+{
+    const ros::Time now = ros::Time::now();
+    if ( !last_ptp_check_.isZero() && (now - last_ptp_check_).toSec() < 1.0 )
+    {
+        return;
+    }
+    last_ptp_check_ = now;
+    int64_t offset_ns = 0;
+    const std::string status = pylon_camera_->getPtpStatus(offset_ns);
+    const bool locked = (status == "Slave") &&
+                        std::abs(offset_ns) * 1e-9 <= pylon_camera_parameter_set_.ptp_max_offset_;
+    if ( status != ptp_status_ || locked != ptp_locked_ )
+    {
+        ROS_INFO_STREAM("Camera PTP status: " << status << ", offset from master " << offset_ns
+                        << " ns -> camera timestamps " << (locked ? "used" : "not used"));
+    }
+    ptp_status_ = status;
+    ptp_locked_ = locked;
+    // ace GigE cameras count in ns only once PTP runs, so read the frequency again
+    tick_frequency_ = pylon_camera_->getTimestampTickFrequency();
+    std_msgs::String msg;
+    msg.data = status + " offset_ns=" + std::to_string(offset_ns) + (locked ? " locked" : " unlocked");
+    ptp_status_pub_.publish(msg);
+}
+
+ros::Time PylonCameraNode::imageStamp(const ros::Time& pre_grab, const ros::Time& post_grab)
+{
+    const std::string& source = pylon_camera_parameter_set_.timestamp_source_;
+    ros::Time stamp = post_grab;
+    if ( source == "host_pre_grab" )
+    {
+        stamp = pre_grab;
+    }
+    else if ( source != "host_post_grab" && ptp_locked_ )
+    {
+        const double seconds = static_cast<double>(pylon_camera_->getLastTimestampTicks()) / tick_frequency_;
+        const ros::Time camera_stamp(seconds);
+        // the exposure cannot be in the future nor long ago: otherwise the camera clock is not the host clock
+        const double age = (post_grab - camera_stamp).toSec();
+        if ( age > -0.01 && age < 0.5 )
+        {
+            stamp = camera_stamp;
+        }
+        else
+        {
+            ROS_WARN_THROTTLE(5.0, "Camera timestamp is %.3f s away from the host clock although PTP is locked: "
+                              "using the host time after the grab", age);
+        }
+    }
+    else if ( source == "camera" )
+    {
+        ROS_WARN_THROTTLE(10.0, "timestamp_source is 'camera' but the camera is not PTP locked (%s): "
+                          "using the host time after the grab", ptp_status_.c_str());
+    }
+    return stamp + ros::Duration(pylon_camera_parameter_set_.timestamp_offset_);
 }
 
 void PylonCameraNode::grabImagesRawActionExecuteCB(

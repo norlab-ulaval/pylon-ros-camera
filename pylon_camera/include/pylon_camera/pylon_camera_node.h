@@ -153,6 +153,15 @@ protected:
     virtual bool grabImage();
 
     /**
+     * Header stamp of the image just grabbed: the camera clock when it is PTP locked, else the host time after
+     * the grab (see PylonCameraParameter::timestamp_source_).
+     */
+    ros::Time imageStamp(const ros::Time& pre_grab, const ros::Time& post_grab);
+
+    /// Reads the PTP status of the camera (at most once a second) and publishes it on ~ptp_status.
+    void updatePtpStatus();
+
+    /**
      * Fills the ros CameraInfo-Object with the image dimensions
      */
     virtual void setupInitialCameraInfo(sensor_msgs::CameraInfo& cam_info_msg);
@@ -1245,6 +1254,12 @@ protected:
 
     bool is_sleeping_;
     boost::recursive_mutex grab_mutex_;
+
+    ros::Publisher ptp_status_pub_;
+    ros::Time last_ptp_check_;
+    std::string ptp_status_{"unknown"};
+    bool ptp_locked_{false};
+    double tick_frequency_{1e9};
 
     /// diagnostics:
     diagnostic_updater::Updater diagnostics_updater_;

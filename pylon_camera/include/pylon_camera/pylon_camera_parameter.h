@@ -257,6 +257,28 @@ public:
     int mtu_size_;
 
     /**
+     * Enable PTP (IEEE 1588) on the camera at startup.
+     */
+    bool enable_ptp_;
+
+    /**
+     * Where the image header stamp comes from: "auto" (the camera clock when PTP is locked, else the host time
+     * after the grab), "camera" (same, but warns loudly when it falls back), "host_post_grab" or "host_pre_grab"
+     * (the host time before the grab, the old behaviour).
+     */
+    std::string timestamp_source_;
+
+    /**
+     * The camera clock is trusted only while the camera reports a PTP offset from the master below this (s).
+     */
+    double ptp_max_offset_;
+
+    /**
+     * Constant added to the image header stamp (s).
+     */
+    double timestamp_offset_;
+
+    /**
      * a flag used to enable/disable the node status publisher.
      */
     bool enable_status_publisher_;

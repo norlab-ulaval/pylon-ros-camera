@@ -293,6 +293,14 @@ public:
 
     virtual int getChunkTimestamp();
 
+    virtual bool setPtpEnabled(bool enable);
+
+    virtual std::string getPtpStatus(int64_t& offset_ns);
+
+    virtual uint64_t getLastTimestampTicks();
+
+    virtual double getTimestampTickFrequency();
+
     virtual float getChunkExposureTime();
 
     virtual std::string setChunkExposureTime(const float& value);
@@ -304,6 +312,7 @@ public:
     virtual int getChunkCounterValue();
 
 protected:
+    uint64_t last_timestamp_ticks_{0};
     typedef typename CameraTraitT::CBaslerInstantCameraT CBaslerInstantCameraT;
     typedef typename CameraTraitT::ExposureAutoEnums ExposureAutoEnums;
     typedef typename CameraTraitT::GainAutoEnums GainAutoEnums;

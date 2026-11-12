@@ -921,6 +921,24 @@ public:
     virtual int getChunkTimestamp() = 0;
 
     /**
+     * Enables or disables PTP (IEEE 1588) on the camera: PtpEnable (ace 2, USB) or GevIEEE1588 (ace GigE).
+     * @return false if the camera has no such feature or it could not be written
+     */
+    virtual bool setPtpEnabled(bool enable) = 0;
+
+    /**
+     * PTP status of the camera ("Slave", "Master", "Listening", ...) and its offset to the master in ns,
+     * "unsupported" if the camera has no PTP feature.
+     */
+    virtual std::string getPtpStatus(int64_t& offset_ns) = 0;
+
+    /// Device timestamp of the last grabbed image, in ticks of getTimestampTickFrequency().
+    virtual uint64_t getLastTimestampTicks() = 0;
+
+    /// Tick frequency of the device timestamps in Hz (1e9 when the camera does not report one).
+    virtual double getTimestampTickFrequency() = 0;
+
+    /**
      * Value of the Exposure time used to acquire the image - Applies to: GigE, ace 2 GigE, ace 2 USB and ace USB.
      * @return error code message if an error occurred or value message otherwise.
      */

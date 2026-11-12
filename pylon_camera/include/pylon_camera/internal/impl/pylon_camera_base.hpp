@@ -528,6 +528,7 @@ bool PylonCameraImpl<CameraTrait>::grab(Pylon::CGrabResultPtr& grab_result)
                 << grab_result->GetErrorDescription());
         return false;
     }
+    last_timestamp_ticks_ = grab_result->GetTimeStamp();
     return true;
 }
 
@@ -3478,6 +3479,93 @@ int PylonCameraImpl<CameraTraitT>::getChunkEnable() {
     }
 }
 
+
+template <typename CameraTraitT>
+bool PylonCameraImpl<CameraTraitT>::setPtpEnabled(bool enable)
+{
+    try
+    {
+        GenApi::INodeMap& node_map = cam_->GetNodeMap();
+        for (const char* name : {"PtpEnable", "GevIEEE1588"})
+        {
+            GenApi::CBooleanPtr feature(node_map.GetNode(name));
+            if (feature.IsValid() && GenApi::IsWritable(feature))
+            {
+                feature->SetValue(enable);
+                return true;
+            }
+        }
+        ROS_WARN("The camera has no writable PTP feature (PtpEnable / GevIEEE1588)");
+    }
+    catch (const GenICam::GenericException& e)
+    {
+        ROS_ERROR_STREAM("An exception while setting PTP occurred: " << e.GetDescription());
+    }
+    return false;
+}
+
+template <typename CameraTraitT>
+std::string PylonCameraImpl<CameraTraitT>::getPtpStatus(int64_t& offset_ns)
+{
+    offset_ns = 0;
+    // {latch command, status, offset from master}: ace 2 and USB, then ace GigE
+    static const char* const names[2][3] = {
+        {"PtpDataSetLatch", "PtpStatus", "PtpOffsetFromMaster"},
+        {"GevIEEE1588DataSetLatch", "GevIEEE1588Status", "GevIEEE1588OffsetFromMaster"}};
+    try
+    {
+        GenApi::INodeMap& node_map = cam_->GetNodeMap();
+        for (const auto& n : names)
+        {
+            GenApi::CEnumerationPtr status(node_map.GetNode(n[1]));
+            if (!status.IsValid() || !GenApi::IsReadable(status))
+            {
+                continue;
+            }
+            GenApi::CCommandPtr latch(node_map.GetNode(n[0]));
+            if (latch.IsValid() && GenApi::IsWritable(latch))
+            {
+                latch->Execute();
+            }
+            GenApi::CIntegerPtr offset(node_map.GetNode(n[2]));
+            if (offset.IsValid() && GenApi::IsReadable(offset))
+            {
+                offset_ns = offset->GetValue();
+            }
+            return std::string(status->ToString().c_str());
+        }
+    }
+    catch (const GenICam::GenericException& e)
+    {
+        ROS_ERROR_STREAM("An exception while reading the PTP status occurred: " << e.GetDescription());
+        return "error";
+    }
+    return "unsupported";
+}
+
+template <typename CameraTraitT>
+uint64_t PylonCameraImpl<CameraTraitT>::getLastTimestampTicks()
+{
+    return last_timestamp_ticks_;
+}
+
+template <typename CameraTraitT>
+double PylonCameraImpl<CameraTraitT>::getTimestampTickFrequency()
+{
+    try
+    {
+        GenApi::CIntegerPtr frequency(cam_->GetNodeMap().GetNode("GevTimestampTickFrequency"));
+        if (frequency.IsValid() && GenApi::IsReadable(frequency) && frequency->GetValue() > 0)
+        {
+            return static_cast<double>(frequency->GetValue());
+        }
+    }
+    catch (const GenICam::GenericException& e)
+    {
+        ROS_WARN_STREAM("Could not read the timestamp tick frequency: " << e.GetDescription());
+    }
+    return 1e9;  // ace 2 and USB cameras count nanoseconds
+}
 
 template <typename CameraTraitT> 
 int PylonCameraImpl<CameraTraitT>::getChunkTimestamp() {
